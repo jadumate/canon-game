@@ -330,6 +330,7 @@ function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.min(now - last, 50);
   last = now;
+  const dtf = dt / 16.667; // normalized delta: 1.0 at 60fps
   tickFPS(now);
 
   ctx.fillStyle = '#f5f6fa';
@@ -347,7 +348,7 @@ function loop(now) {
     if (keys['ArrowUp']    || keys['KeyW']) my -= spd;
     if (keys['ArrowDown']  || keys['KeyS']) my += spd;
     if (mx && my) { mx *= 0.7071; my *= 0.7071; }
-    cam.x += mx; cam.y += my;
+    cam.x += mx * dtf; cam.y += my * dtf;
 
     cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
 
@@ -364,10 +365,10 @@ function loop(now) {
     enemies.forEach(e => {
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      if (d > 85) { e.vx += (dx / d) * espd; e.vy += (dy / d) * espd; }
-      e.vx *= 0.92; e.vy *= 0.92;
-      e.x += e.vx; e.y += e.vy;
-      e.bob += 0.03;
+      if (d > 85) { e.vx += (dx / d) * espd * dtf; e.vy += (dy / d) * espd * dtf; }
+      e.vx *= Math.pow(0.92, dtf); e.vy *= Math.pow(0.92, dtf);
+      e.x += e.vx * dtf; e.y += e.vy * dtf;
+      e.bob += 0.03 * dtf;
       e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
       e.shootTimer += dt;
       if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); }
@@ -376,7 +377,7 @@ function loop(now) {
     // Player bullet collisions
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
-      b.x += b.vx; b.y += b.vy; b.life--;
+      b.x += b.vx * dtf; b.y += b.vy * dtf; b.life -= dtf;
       if (b.life <= 0) { bullets.splice(i, 1); continue; }
       let hit = false;
       for (let j = enemies.length - 1; j >= 0; j--) {
@@ -405,7 +406,7 @@ function loop(now) {
     // Enemy bullet collisions
     for (let i = eBullets.length - 1; i >= 0; i--) {
       const b = eBullets[i];
-      b.x += b.vx; b.y += b.vy; b.life--;
+      b.x += b.vx * dtf; b.y += b.vy * dtf; b.life -= dtf;
       if (b.life <= 0) { eBullets.splice(i, 1); continue; }
       if (invincible <= 0) {
         const dx = b.x - cam.x, dy = b.y - cam.y;
@@ -419,14 +420,14 @@ function loop(now) {
       }
     }
 
-    if (invincible > 0) invincible--;
+    if (invincible > 0) invincible -= dtf;
 
     // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
-      p.x += p.vx; p.y += p.vy;
-      p.vx *= 0.96; p.vy *= 0.96;
-      p.life--;
+      p.x += p.vx * dtf; p.y += p.vy * dtf;
+      p.vx *= Math.pow(0.96, dtf); p.vy *= Math.pow(0.96, dtf);
+      p.life -= dtf;
       if (p.life <= 0) particles.splice(i, 1);
     }
   }
@@ -479,7 +480,7 @@ function loop(now) {
   if (hitFlash > 0) {
     ctx.fillStyle = `rgba(255,0,0,${hitFlash * 0.28})`;
     ctx.fillRect(0, 0, W, H);
-    hitFlash -= 0.07;
+    hitFlash -= 0.07 * dtf;
   }
 
   updateUI();
