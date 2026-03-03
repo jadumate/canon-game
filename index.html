@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CANNON BLASTER</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <!-- HAMBURGER MENU -->
+  <div id="menu-btn" onclick="toggleMenu()">
+    <span></span>
+    <span></span>
+    <span></span>
+  </div>
+  <div id="menu-dropdown">
+    <div class="menu-item" onclick="openAbout()">
+      <span class="menu-icon">ℹ️</span> About
+    </div>
+    <a class="menu-item" href="https://github.com/" target="_blank" rel="noopener">
+      <span class="menu-icon">🐙</span> Open Source · GitHub
+    </a>
+  </div>
+
+  <!-- SCORE (top-right) -->
+  <div id="score-box">
+    <div id="score-label">Score</div>
+    <div id="score-val">0</div>
+  </div>
+
+  <!-- LIFE BAR (below score) -->
+  <div id="life-bar">
+    <div class="heart" id="h0">
+      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg0)" stroke="#cc0000" stroke-width="1"/>
+        <defs><radialGradient id="hg0" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+      </svg>
+    </div>
+    <div class="heart" id="h1">
+      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg1)" stroke="#cc0000" stroke-width="1"/>
+        <defs><radialGradient id="hg1" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+      </svg>
+    </div>
+    <div class="heart" id="h2">
+      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg2)" stroke="#cc0000" stroke-width="1"/>
+        <defs><radialGradient id="hg2" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+      </svg>
+    </div>
+    <div class="heart" id="h3">
+      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg3)" stroke="#cc0000" stroke-width="1"/>
+        <defs><radialGradient id="hg3" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+      </svg>
+    </div>
+    <div class="heart" id="h4">
+      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg4)" stroke="#cc0000" stroke-width="1"/>
+        <defs><radialGradient id="hg4" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+      </svg>
+    </div>
+  </div>
+
+  <!-- WAVE (top-center) -->
+  <div id="wave-box">
+    <div id="wave-label">Wave</div>
+    <div id="wave-val">1</div>
+  </div>
+
+  <!-- FPS -->
+  <div id="fps-box">FPS: --</div>
+
+  <!-- UPGRADE PANEL (left-center, vertical) -->
+  <div id="upgrade-panel">
+    <button class="upg-btn" onclick="upgrade('size')">
+      <span class="upg-title">[U] Bullet Size</span>
+      <span class="upg-cost">1000 pts</span>
+      <span class="upg-lv" id="lv-size">LV 1</span>
+    </button>
+    <button class="upg-btn" onclick="upgrade('speed')">
+      <span class="upg-title">[I] Bullet Speed</span>
+      <span class="upg-cost">1000 pts</span>
+      <span class="upg-lv" id="lv-speed">LV 1</span>
+    </button>
+    <button class="upg-btn" onclick="upgrade('rate')">
+      <span class="upg-title">[O] Fire Rate</span>
+      <span class="upg-cost">1000 pts</span>
+      <span class="upg-lv" id="lv-rate">LV 1</span>
+    </button>
+    <button class="upg-btn" onclick="upgrade('move')">
+      <span class="upg-title">[P] Move Speed</span>
+      <span class="upg-cost">1000 pts</span>
+      <span class="upg-lv" id="lv-move">LV 1</span>
+    </button>
+  </div>
+
+  <!-- KILL FEED -->
+  <div id="kill-feed"></div>
+
+  <!-- GAME OVER -->
+  <div id="msg-overlay">
+    <div id="msg-title">GAME OVER</div>
+    <div id="msg-sub">FINAL SCORE: <span id="final-score">0</span></div>
+    <button id="restart-btn" onclick="restartGame()">RESTART</button>
+  </div>
+
+  <!-- ABOUT MODAL -->
+  <div id="about-modal" onclick="closeAbout(event)">
+    <div id="about-card">
+      <button id="about-close" onclick="closeAbout()">✕</button>
+      <h2>CANNON BLASTER</h2>
+      <div class="sub">A 2D TWIN-STICK SHOOTER</div>
+      <p>Survive endless waves of AI-controlled enemy cannons. Destroy enemies to earn points, then spend them on upgrades to become unstoppable.</p>
+      <div class="controls">
+        <strong>W A S D / ↑↓←→</strong> &nbsp;Move (8 directions)<br>
+        <strong>Mouse</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Aim cannon<br>
+        <strong>Auto</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fires every interval<br>
+        <strong>U</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade bullet size<br>
+        <strong>I</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade bullet speed<br>
+        <strong>O</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade fire rate<br>
+        <strong>P</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade move speed
+      </div>
+      <p style="font-size:.72rem;color:#99a;">Difficulty increases every 30 seconds. Enemies get faster, tougher, and more numerous. Good luck!</p>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
