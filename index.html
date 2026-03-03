@@ -63,6 +63,12 @@
     </div>
   </div>
 
+  <!-- SITE TITLE (top-center) -->
+  <div id="site-title">
+    <div id="site-name">EmptyBoard.com</div>
+    <div id="site-build">build no. 5</div>
+  </div>
+
   <!-- WAVE (top-center) -->
   <div id="wave-box">
     <div id="wave-label">Wave</div>
@@ -75,23 +81,28 @@
   <!-- UPGRADE PANEL (left-center, vertical) -->
   <div id="upgrade-panel">
     <button class="upg-btn" onclick="upgrade('size')">
-      <span class="upg-title">[U] Bullet Size</span>
-      <span class="upg-cost">1000 pts</span>
+      <span class="upg-title">[u] Blt.Size</span>
+      <span class="upg-cost" id="cost-size">1000 pts</span>
       <span class="upg-lv" id="lv-size">LV 1</span>
     </button>
     <button class="upg-btn" onclick="upgrade('speed')">
-      <span class="upg-title">[I] Bullet Speed</span>
-      <span class="upg-cost">1000 pts</span>
+      <span class="upg-title">[i] Blt.Speed</span>
+      <span class="upg-cost" id="cost-speed">1000 pts</span>
       <span class="upg-lv" id="lv-speed">LV 1</span>
     </button>
     <button class="upg-btn" onclick="upgrade('rate')">
-      <span class="upg-title">[O] Fire Rate</span>
-      <span class="upg-cost">1000 pts</span>
+      <span class="upg-title">[o] Blt.Rate</span>
+      <span class="upg-cost" id="cost-rate">1000 pts</span>
       <span class="upg-lv" id="lv-rate">LV 1</span>
     </button>
+    <button class="upg-btn" onclick="upgrade('dmg')">
+      <span class="upg-title">[p] Blt.Power</span>
+      <span class="upg-cost" id="cost-dmg">1000 pts</span>
+      <span class="upg-lv" id="lv-dmg">LV 1</span>
+    </button>
     <button class="upg-btn" onclick="upgrade('move')">
-      <span class="upg-title">[P] Move Speed</span>
-      <span class="upg-cost">1000 pts</span>
+      <span class="upg-title">[y] Move Speed</span>
+      <span class="upg-cost" id="cost-move">1000 pts</span>
       <span class="upg-lv" id="lv-move">LV 1</span>
     </button>
   </div>
@@ -117,10 +128,11 @@
         <strong>W A S D / ↑↓←→</strong> &nbsp;Move (8 directions)<br>
         <strong>Mouse</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Aim cannon<br>
         <strong>Auto</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fires every interval<br>
-        <strong>U</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade bullet size<br>
-        <strong>I</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade bullet speed<br>
-        <strong>O</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade fire rate<br>
-        <strong>P</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Upgrade move speed
+        <strong>U</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Blt.Size<br>
+        <strong>I</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Blt.Speed<br>
+        <strong>O</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Blt.Rate<br>
+        <strong>P</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Blt.Power<br>
+        <strong>Y</strong> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Move Speed
       </div>
       <p style="font-size:.72rem;color:#99a;">Difficulty increases every 30 seconds. Enemies get faster, tougher, and more numerous. Good luck!</p>
     </div>

@@ -164,13 +164,43 @@ canvas {
   filter: none;
 }
 
-/* ── WAVE (top-center) ── */
-#wave-box {
+/* ── SITE TITLE (top-center) ── */
+#site-title {
   position: fixed;
-  top: 14px;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
+  z-index: 100;
+  pointer-events: none;
+}
+
+#site-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: #334466cc;
+}
+
+#site-build {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.48rem;
+  letter-spacing: 2px;
+  color: #33446677;
+  margin-top: 1px;
+}
+
+/* ── WAVE (top-center) ── */
+#wave-box {
+  position: fixed;
+  top: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 5px;
   z-index: 100;
 }
 
@@ -239,9 +269,26 @@ canvas {
   transform: translateX(2px);
 }
 
-.upg-title {
-  font-size: 0.6rem;
+.upg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.upg-icon {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 1rem;
   font-weight: 700;
+  color: #cc4400;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.upg-key {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.46rem;
+  color: #cc440077;
   letter-spacing: 1px;
 }
 

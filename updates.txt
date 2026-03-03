@@ -1,0 +1,43 @@
+## [2026-03-03] Gameplay & UI Overhaul (build 2 → 5)
+
+### Branding
+- Added site title **EmptyBoard.com** + build number at top-center
+- Build number now auto-increments on every `publish.sh` run
+
+### Difficulty & Scoring
+- Auto score: +wave pts every second (passive income)
+- Upgrade costs now scale +15% per level (`1000 × 1.15^(lv-1)`)
+- Enemy bullet speed at startup reduced to 80% (3.8 → 3.04)
+
+### New Upgrade: Bullet Power `[p]`
+- Each level adds +1 damage per hit (LV1=1, LV2=2, …)
+- Same cost scaling as other upgrades
+
+### Upgrade Key Map (final)
+- `[u]` Blt.Size · `[i]` Blt.Speed · `[o]` Blt.Rate · `[p]` Blt.Power · `[y]` Move Speed
+
+### Upgrade Panel UI
+- Replaced long labels with abbreviated text: Blt.Size, Blt.Speed, Blt.Rate, Blt.Power, Move Speed
+- Reordered panel: Size → Speed → Rate → Power → Move Speed
+- Cost display on buttons updates live each frame
+
+### Wave Display
+- Wave label and number now show on a single line ("Wave 1")
+
+---
+
+## [2026-03-03] Delta Time / Frame-Rate Fix
+
+### Changes
+- **game.js**: Introduced `dtf` (normalized delta time, `dt / 16.667`) so all
+  physics and movement run at consistent speed regardless of frame rate.
+  - Camera movement scaled by `dtf`
+  - Enemy AI acceleration, friction, position, and bob animation scaled by `dtf`
+  - Player and enemy bullets position and lifetime scaled by `dtf`
+  - Invincibility timer and hit flash scaled by `dtf`
+  - Friction now uses `Math.pow(factor, dtf)` for correct exponential decay
+- **index.html**: Updated GitHub link to point to the actual repo
+  (`https://github.com/jadumate/canon-game/`)
+
+### Deploy
+- Committed and pushed to `master` on GitHub via token in `.env`

@@ -46,7 +46,7 @@ function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20
 function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); }
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
 function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
-function getEnemyBulletSpeed()  { return 3.8 + elapsedSec * 0.015; }
+function getEnemyBulletSpeed()  { return 3.04 + elapsedSec * 0.015; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 6); }
 
 const keys = {};
@@ -60,17 +60,22 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
-const upg = { size: 1, speed: 1, rate: 1, move: 1 };
+const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1 };
+
+function getUpgCost(type) {
+  return Math.round(1000 * Math.pow(1.15, upg[type] - 1));
+}
 
 function upgrade(type) {
   if (!gameActive) return;
-  if (score >= 1000) {
-    score -= 1000;
+  const cost = getUpgCost(type);
+  if (score >= cost) {
+    score -= cost;
     upg[type]++;
     document.getElementById('lv-' + type).textContent = 'LV ' + upg[type];
     feed('UPGRADE ' + type.toUpperCase() + ' → LV' + upg[type]);
   } else {
-    feed('NOT ENOUGH SCORE (need 1000)');
+    feed('NOT ENOUGH SCORE (need ' + cost + ')');
   }
 }
 
@@ -78,15 +83,17 @@ function handleKey(code) {
   if (code === 'KeyU') upgrade('size');
   if (code === 'KeyI') upgrade('speed');
   if (code === 'KeyO') upgrade('rate');
-  if (code === 'KeyP') upgrade('move');
+  if (code === 'KeyY') upgrade('move');
+  if (code === 'KeyP') upgrade('dmg');
 }
 
 function getBR() { return 5 + (upg.size - 1) * 3; }
 function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
+function getBD() { return upg.dmg; }
 
 const bullets = [], eBullets = [], enemies = [], particles = [];
-let shotTimer = 0, enemyTimer = 0;
+let shotTimer = 0, enemyTimer = 0, scoreTimer = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
@@ -294,10 +301,13 @@ function tickFPS(now) {
 function updateUI() {
   document.getElementById('score-val').textContent = score;
   const w = getWave();
-  document.getElementById('wave-val').textContent = 'WAVE ' + w;
+  document.getElementById('wave-val').textContent = w;
   for (let i = 0; i < 5; i++) {
     document.getElementById('h' + i).classList.toggle('dead', i >= life);
   }
+  ['size', 'speed', 'rate', 'move', 'dmg'].forEach(k => {
+    document.getElementById('cost-' + k).textContent = getUpgCost(k) + ' pts';
+  });
   if (w > lastWave) {
     lastWave = w;
     feed('⚠ WAVE ' + w + ' — Difficulty increased!');
@@ -314,11 +324,11 @@ function restartGame() {
   score = 0; life = 5; gameActive = true;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1;
-  ['size', 'speed', 'rate', 'move'].forEach(k => {
+  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1;
+  ['size', 'speed', 'rate', 'move', 'dmg'].forEach(k => {
     document.getElementById('lv-' + k).textContent = 'LV 1';
   });
-  shotTimer = 0; enemyTimer = 0; invincible = 0; hitFlash = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   elapsedSec = 0; lastWave = 0;
   document.getElementById('msg-overlay').classList.remove('show');
 }
@@ -339,6 +349,10 @@ function loop(now) {
 
   if (gameActive) {
     elapsedSec += dt / 1000;
+
+    // Auto score: +wave pts per second
+    scoreTimer += dt;
+    if (scoreTimer >= 1000) { scoreTimer -= 1000; score += getWave(); }
 
     // Player movement
     const spd = 3.2 + (upg.move - 1) * 0.8;
@@ -384,7 +398,7 @@ function loop(now) {
         const e = enemies[j];
         const dx = b.x - e.x, dy = b.y - e.y;
         if (dx * dx + dy * dy < (b.r + e.r) ** 2) {
-          e.hp--;
+          e.hp -= getBD();
           bullets.splice(i, 1);
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
