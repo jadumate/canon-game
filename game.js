@@ -321,8 +321,7 @@ function triggerGameOver() {
   document.getElementById('final-wave').textContent = getWave();
   document.getElementById('lb-form').style.display = '';
   document.getElementById('lb-status').textContent = '';
-  document.getElementById('lb-name').value = '';
-  document.getElementById('restart-btn').style.display = 'none';
+  document.getElementById('lb-name').value = localStorage.getItem('cannonPlayerName') || '';
   document.getElementById('msg-overlay').classList.add('show');
   document.getElementById('msg-overlay').scrollTop = 0;
   fetchLeaderboard();
@@ -342,6 +341,7 @@ function submitLeaderboard() {
     .then(r => r.json())
     .then(d => {
       if (d.ok) {
+        localStorage.setItem('cannonPlayerName', name);
         document.getElementById('lb-status').textContent = 'Score submitted! You ranked #' + d.rank;
         document.getElementById('lb-form').style.display = 'none';
         renderLeaderboard(d.scores, d.rank - 1);
@@ -353,9 +353,6 @@ function submitLeaderboard() {
     .catch(() => {
       document.getElementById('lb-status').textContent = 'Could not reach server.';
       btn.disabled = false;
-    })
-    .finally(() => {
-      document.getElementById('restart-btn').style.display = '';
     });
 }
 
@@ -404,7 +401,6 @@ function restartGame() {
   });
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   elapsedSec = 0; lastWave = 0;
-  document.getElementById('restart-btn').style.display = '';
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
