@@ -1,3 +1,11 @@
+## [2026-03-04] UX Fixes (build 16)
+
+### Game Over / Leaderboard
+- RESTART button is now always visible on the game over screen (no longer hidden until after score submit)
+- Player nickname is saved to `localStorage` on successful submit and auto-filled on the next game over
+
+---
+
 ## [2026-03-04] Leaderboard, Score Split & HUD Rework (build 6 → 15)
 
 ### Score System
