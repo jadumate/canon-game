@@ -1,3 +1,41 @@
+## [2026-03-04] Leaderboard, Score Split & HUD Rework (build 6 → 15)
+
+### Score System
+- Split score into two values:
+  - **Point** — spendable balance (decremented on upgrades, used in upgrade panel)
+  - **Total** — cumulative points ever earned (never decremented, used for leaderboard ranking)
+- Both increment together on kills (+100×wave for kill, +20 for hit, +wave/sec passive)
+
+### HUD Rework
+- Merged hearts and scores into a single **horizontal strip panel** (top-right)
+  - Hearts on the left, vertical divider, POINT + TOTAL labels with values on the right
+- Panel background set to **transparent**
+- Kill feed repositioned to sit cleanly below the panel
+
+### Leaderboard Sub-project (`leaderboard/`)
+- New **PHP + SQLite3** leaderboard backend
+  - `api.php` — JSON API: `GET` returns top 20 scores, `POST {name, score, wave}` inserts and returns rank + full scores list
+  - `index.php` — standalone leaderboard page with card-style design, gold/silver/bronze top-3 styling
+  - `scores.db` — SQLite3 DB, auto-created on first request
+  - `.htaccess` — blocks direct HTTP access to `scores.db`
+- **Game over overlay** redesigned:
+  - Shows Total Points + Wave Reached
+  - Leaderboard fetches and renders automatically on game over
+  - Name input → Submit Score → highlights player's rank in the list
+  - "VIEW FULL LEADERBOARD →" link
+  - Removed Skip button
+
+### Bug Fixes
+- Fixed `DEFAULT (datetime("now"))` SQLite schema error on PHP 7.4 (old SQLite bundled version doesn't support function-call column defaults) — moved `datetime("now")` into the `INSERT` statement instead
+- Fixed `submitLeaderboard is not defined` — caused by browser caching old `game.js`; added `?v=N` cache-busting query string to CSS and JS links, auto-bumped by `publish.sh` on every build
+- Fixed "GAME OVER" and "LEADERBOARD" titles line-wrapping on narrow screens — added `white-space: nowrap` and `clamp()` font sizing
+
+### publish.sh
+- Now also uploads `leaderboard/api.php`, `leaderboard/index.php`, `leaderboard/.htaccess`
+- Auto-updates `?v=N` cache-busting version on `style.css` and `game.js` links in sync with build number
+
+---
+
 ## [2026-03-03] Gameplay & UI Overhaul (build 2 → 5)
 
 ### Branding

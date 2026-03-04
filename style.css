@@ -109,42 +109,83 @@ canvas {
   opacity: 0.7;
 }
 
-/* ── SCORE (top-right) ── */
-#score-box {
+/* ── HUD PANEL (top-right): hearts | divider | scores ── */
+#hud-panel {
   position: fixed;
   top: 14px;
   right: 18px;
-  text-align: right;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
   z-index: 100;
+  background: transparent;
+  padding: 10px 14px;
+}
+
+#life-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+#hud-div {
+  width: 1px;
+  height: 32px;
+  background: #dde0ee;
+  margin: 0 12px;
+  flex-shrink: 0;
+}
+
+#score-box {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  text-align: right;
+}
+
+.score-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 #score-label {
   font-family: 'Orbitron', monospace;
-  font-size: 0.55rem;
-  letter-spacing: 4px;
-  color: #cc4400bb;
+  font-size: 0.44rem;
+  letter-spacing: 3px;
+  color: #cc4400aa;
   text-transform: uppercase;
 }
 
 #score-val {
   font-family: 'Orbitron', monospace;
-  font-size: 1.9rem;
+  font-size: 1.1rem;
   color: #cc4400;
-  text-shadow: 0 0 8px #ff6b1a33;
-  line-height: 1.1;
+  text-shadow: 0 0 8px #ff6b1a22;
+  line-height: 1;
+  min-width: 60px;
+  text-align: right;
 }
 
-/* ── LIFE BAR (below score, top-right) ── */
-#life-bar {
-  position: fixed;
-  top: 72px;
-  right: 18px;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  z-index: 100;
+#total-label {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.44rem;
+  letter-spacing: 3px;
+  color: #33668899;
+  text-transform: uppercase;
+}
+
+#total-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.1rem;
+  color: #336688;
+  text-shadow: 0 0 6px #33668822;
+  line-height: 1;
+  min-width: 60px;
+  text-align: right;
 }
 
 .heart {
@@ -304,10 +345,10 @@ canvas {
   font-weight: 700;
 }
 
-/* ── KILL FEED (top-right, below life) ── */
+/* ── KILL FEED (top-right, below hud panel) ── */
 #kill-feed {
   position: fixed;
-  top: 108px;
+  top: 82px;
   right: 18px;
   display: flex;
   flex-direction: column;
@@ -333,15 +374,16 @@ canvas {
   width: 100%;
   height: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  background: #ffffff99;
-  backdrop-filter: blur(5px);
+  overflow-y: auto;
+  background: #ffffffaa;
+  backdrop-filter: blur(6px);
   z-index: 300;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.4s;
+  padding: 30px 20px 40px;
 }
 
 #msg-overlay.show {
@@ -349,20 +391,218 @@ canvas {
   pointer-events: all;
 }
 
+#msg-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 420px;
+  margin: auto;
+}
+
 #msg-title {
   font-family: 'Orbitron', monospace;
-  font-size: 3.2rem;
+  font-size: clamp(1.6rem, 6vw, 3rem);
   color: #cc3300;
   letter-spacing: 6px;
+  white-space: nowrap;
 }
 
 #msg-sub {
   font-family: 'Share Tech Mono', monospace;
   font-size: 1rem;
   color: #445566;
-  margin-top: 16px;
+  margin-top: 14px;
   letter-spacing: 3px;
 }
+
+#msg-wave-line {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  color: #3355bb;
+  margin-top: 5px;
+  letter-spacing: 3px;
+}
+
+/* ── NAME SUBMIT FORM ── */
+#lb-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 22px;
+  width: 100%;
+}
+
+#lb-name {
+  background: #f5f6fa;
+  border: 1px solid #cc440055;
+  border-radius: 6px;
+  padding: 10px 18px;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: #334466;
+  text-align: center;
+  width: 100%;
+  max-width: 300px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#lb-name:focus {
+  border-color: #ff6b1a;
+  box-shadow: 0 0 10px #ff6b1a33;
+}
+
+#lb-btns {
+  display: flex;
+  gap: 10px;
+}
+
+#lb-submit-btn {
+  padding: 10px 28px;
+  background: #ff6b1a;
+  border: none;
+  border-radius: 6px;
+  font-family: 'Orbitron', monospace;
+  font-size: 0.7rem;
+  color: #fff;
+  cursor: pointer;
+  letter-spacing: 2px;
+  box-shadow: 0 4px 14px #ff6b1a44;
+  transition: background 0.2s;
+}
+
+#lb-submit-btn:hover:not(:disabled) { background: #cc4400; }
+#lb-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+
+#lb-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  color: #cc6600;
+  letter-spacing: 2px;
+  min-height: 1em;
+}
+
+/* ── INLINE LEADERBOARD ── */
+#lb-section {
+  width: 100%;
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#lb-section-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 5px;
+  color: #334466aa;
+  text-transform: uppercase;
+  position: relative;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+}
+
+#lb-section-title::before,
+#lb-section-title::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 28%;
+  height: 1px;
+  background: #33446622;
+}
+#lb-section-title::before { left: 0; }
+#lb-section-title::after  { right: 0; }
+
+#lb-board {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: #f5f6facc;
+  border: 1px solid #dde0ee;
+  transition: background 0.15s;
+}
+
+.lb-gold   { border-color: #d4a017; background: linear-gradient(90deg, #fffbe8, #f5f6fa); }
+.lb-silver { border-color: #aaa;    background: linear-gradient(90deg, #f3f3f3, #f5f6fa); }
+.lb-bronze { border-color: #b07040; background: linear-gradient(90deg, #fff2ea, #f5f6fa); }
+.lb-highlighted { border-color: #ff6b1a; background: linear-gradient(90deg, #fff5ee, #f5f6fa); box-shadow: 0 0 10px #ff6b1a22; }
+
+.lb-rank {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.6rem;
+  color: #334466aa;
+  width: 22px;
+  flex-shrink: 0;
+}
+.lb-gold   .lb-rank { color: #c89000; font-weight: 900; }
+.lb-silver .lb-rank { color: #888;    font-weight: 900; }
+.lb-bronze .lb-rank { color: #a06030; font-weight: 900; }
+
+.lb-name {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.78rem;
+  color: #334466;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 8px;
+}
+
+.lb-score {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.78rem;
+  color: #cc4400;
+  flex-shrink: 0;
+}
+
+.lb-wave {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.6rem;
+  color: #3355bb;
+  width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.lb-loading, .lb-empty {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.55rem;
+  letter-spacing: 2px;
+  color: #aaa;
+  text-align: center;
+  padding: 16px 0;
+}
+
+#lb-link {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.52rem;
+  letter-spacing: 2px;
+  color: #3355bb;
+  text-decoration: none;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+#lb-link:hover { opacity: 1; }
 
 #restart-btn {
   margin-top: 30px;

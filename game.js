@@ -33,7 +33,7 @@ resize();
 window.addEventListener('resize', resize);
 
 const cam = { x: 0, y: 0 };
-let score = 0, life = 5, gameActive = true;
+let score = 0, totalPoints = 0, life = 5, gameActive = true;
 let mouseX = 0, mouseY = 0;
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
@@ -300,6 +300,7 @@ function tickFPS(now) {
 
 function updateUI() {
   document.getElementById('score-val').textContent = score;
+  document.getElementById('total-val').textContent = totalPoints;
   const w = getWave();
   document.getElementById('wave-val').textContent = w;
   for (let i = 0; i < 5; i++) {
@@ -316,12 +317,85 @@ function updateUI() {
 
 function triggerGameOver() {
   gameActive = false;
-  document.getElementById('final-score').textContent = score;
+  document.getElementById('final-score').textContent = totalPoints;
+  document.getElementById('final-wave').textContent = getWave();
+  document.getElementById('lb-form').style.display = '';
+  document.getElementById('lb-status').textContent = '';
+  document.getElementById('lb-name').value = '';
+  document.getElementById('restart-btn').style.display = 'none';
   document.getElementById('msg-overlay').classList.add('show');
+  document.getElementById('msg-overlay').scrollTop = 0;
+  fetchLeaderboard();
+}
+
+function submitLeaderboard() {
+  const name = document.getElementById('lb-name').value.trim();
+  if (!name) { document.getElementById('lb-status').textContent = 'Enter your name first!'; return; }
+  const btn = document.getElementById('lb-submit-btn');
+  btn.disabled = true;
+  document.getElementById('lb-status').textContent = 'Submitting...';
+  fetch('leaderboard/api.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, score: totalPoints, wave: getWave() })
+  })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) {
+        document.getElementById('lb-status').textContent = 'Score submitted! You ranked #' + d.rank;
+        document.getElementById('lb-form').style.display = 'none';
+        renderLeaderboard(d.scores, d.rank - 1);
+      } else {
+        document.getElementById('lb-status').textContent = 'Error: ' + (d.error || 'unknown');
+        btn.disabled = false;
+      }
+    })
+    .catch(() => {
+      document.getElementById('lb-status').textContent = 'Could not reach server.';
+      btn.disabled = false;
+    })
+    .finally(() => {
+      document.getElementById('restart-btn').style.display = '';
+    });
+}
+
+
+function fetchLeaderboard() {
+  document.getElementById('lb-board').innerHTML = '<div class="lb-loading">Loading...</div>';
+  fetch('leaderboard/api.php')
+    .then(r => r.json())
+    .then(d => { if (d.ok) renderLeaderboard(d.scores, -1); })
+    .catch(() => { document.getElementById('lb-board').innerHTML = '<div class="lb-empty">Could not load scores.</div>'; });
+}
+
+function renderLeaderboard(scores, highlightIdx) {
+  const el = document.getElementById('lb-board');
+  if (!scores || !scores.length) {
+    el.innerHTML = '<div class="lb-empty">No scores yet — be the first!</div>';
+    return;
+  }
+  el.innerHTML = scores.map((s, i) => {
+    const cls = i === 0 ? 'lb-gold' : i === 1 ? 'lb-silver' : i === 2 ? 'lb-bronze' : '';
+    const hl  = i === highlightIdx ? ' lb-highlighted' : '';
+    return `<div class="lb-row ${cls}${hl}">
+      <span class="lb-rank">${i + 1}</span>
+      <span class="lb-name">${escHtml(s.name)}</span>
+      <span class="lb-score">${Number(s.score).toLocaleString()}</span>
+      <span class="lb-wave">W${s.wave}</span>
+    </div>`;
+  }).join('');
+  if (highlightIdx >= 0) {
+    const rows = el.querySelectorAll('.lb-row');
+    if (rows[highlightIdx]) rows[highlightIdx].scrollIntoView({ block: 'nearest' });
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
 }
 
 function restartGame() {
-  score = 0; life = 5; gameActive = true;
+  score = 0; totalPoints = 0; life = 5; gameActive = true;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1;
@@ -330,6 +404,7 @@ function restartGame() {
   });
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   elapsedSec = 0; lastWave = 0;
+  document.getElementById('restart-btn').style.display = '';
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
@@ -352,7 +427,7 @@ function loop(now) {
 
     // Auto score: +wave pts per second
     scoreTimer += dt;
-    if (scoreTimer >= 1000) { scoreTimer -= 1000; score += getWave(); }
+    if (scoreTimer >= 1000) { scoreTimer -= 1000; const passive = getWave(); score += passive; totalPoints += passive; }
 
     // Player movement
     const spd = 3.2 + (upg.move - 1) * 0.8;
@@ -403,12 +478,12 @@ function loop(now) {
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
-            score += bonus;
+            score += bonus; totalPoints += bonus;
             feed('+' + bonus + ' ENEMY DESTROYED');
             enemies.splice(j, 1);
           } else {
             explode(e.x, e.y, e.color, 8);
-            score += 20;
+            score += 20; totalPoints += 20;
           }
           hit = true;
           break;

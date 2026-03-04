@@ -1,0 +1,3 @@
+<Files "scores.db">
+    Require all denied
+</Files>

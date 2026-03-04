@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>CANNON BLASTER</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -23,50 +23,57 @@
     </a>
   </div>
 
-  <!-- SCORE (top-right) -->
-  <div id="score-box">
-    <div id="score-label">Score</div>
-    <div id="score-val">0</div>
-  </div>
-
-  <!-- LIFE BAR (below score) -->
-  <div id="life-bar">
-    <div class="heart" id="h0">
-      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg0)" stroke="#cc0000" stroke-width="1"/>
-        <defs><radialGradient id="hg0" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
-      </svg>
+  <!-- HUD PANEL (top-right): hearts | scores -->
+  <div id="hud-panel">
+    <div id="life-bar">
+      <div class="heart" id="h0">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg0)" stroke="#cc0000" stroke-width="1"/>
+          <defs><radialGradient id="hg0" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+        </svg>
+      </div>
+      <div class="heart" id="h1">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg1)" stroke="#cc0000" stroke-width="1"/>
+          <defs><radialGradient id="hg1" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+        </svg>
+      </div>
+      <div class="heart" id="h2">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg2)" stroke="#cc0000" stroke-width="1"/>
+          <defs><radialGradient id="hg2" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+        </svg>
+      </div>
+      <div class="heart" id="h3">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg3)" stroke="#cc0000" stroke-width="1"/>
+          <defs><radialGradient id="hg3" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+        </svg>
+      </div>
+      <div class="heart" id="h4">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg4)" stroke="#cc0000" stroke-width="1"/>
+          <defs><radialGradient id="hg4" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
+        </svg>
+      </div>
     </div>
-    <div class="heart" id="h1">
-      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg1)" stroke="#cc0000" stroke-width="1"/>
-        <defs><radialGradient id="hg1" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
-      </svg>
-    </div>
-    <div class="heart" id="h2">
-      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg2)" stroke="#cc0000" stroke-width="1"/>
-        <defs><radialGradient id="hg2" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
-      </svg>
-    </div>
-    <div class="heart" id="h3">
-      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg3)" stroke="#cc0000" stroke-width="1"/>
-        <defs><radialGradient id="hg3" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
-      </svg>
-    </div>
-    <div class="heart" id="h4">
-      <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg4)" stroke="#cc0000" stroke-width="1"/>
-        <defs><radialGradient id="hg4" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#ff9999"/><stop offset="100%" stop-color="#cc0000"/></radialGradient></defs>
-      </svg>
+    <div id="hud-div"></div>
+    <div id="score-box">
+      <div class="score-row">
+        <span id="score-label">POINT</span>
+        <span id="score-val">0</span>
+      </div>
+      <div class="score-row">
+        <span id="total-label">TOTAL</span>
+        <span id="total-val">0</span>
+      </div>
     </div>
   </div>
 
   <!-- SITE TITLE (top-center) -->
   <div id="site-title">
     <div id="site-name">EmptyBoard.com</div>
-    <div id="site-build">build no. 5</div>
+    <div id="site-build">build no. 15</div>
   </div>
 
   <!-- WAVE (top-center) -->
@@ -112,9 +119,24 @@
 
   <!-- GAME OVER -->
   <div id="msg-overlay">
-    <div id="msg-title">GAME OVER</div>
-    <div id="msg-sub">FINAL SCORE: <span id="final-score">0</span></div>
-    <button id="restart-btn" onclick="restartGame()">RESTART</button>
+    <div id="msg-card">
+      <div id="msg-title">GAME OVER</div>
+      <div id="msg-sub">TOTAL POINTS: <span id="final-score">0</span></div>
+      <div id="msg-wave-line">WAVE REACHED: <span id="final-wave">1</span></div>
+      <div id="lb-form">
+        <input id="lb-name" type="text" maxlength="20" placeholder="ENTER YOUR NAME" autocomplete="off" spellcheck="false" />
+        <div id="lb-btns">
+          <button id="lb-submit-btn" onclick="submitLeaderboard()">SUBMIT SCORE</button>
+        </div>
+        <div id="lb-status"></div>
+      </div>
+      <div id="lb-section">
+        <div id="lb-section-title">LEADERBOARD</div>
+        <div id="lb-board"><div class="lb-loading">Loading...</div></div>
+        <a id="lb-link" href="leaderboard/" target="_blank">VIEW FULL LEADERBOARD →</a>
+      </div>
+      <button id="restart-btn" onclick="restartGame()">RESTART</button>
+    </div>
   </div>
 
   <!-- ABOUT MODAL -->
@@ -138,6 +160,6 @@
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=15"></script>
 </body>
 </html>
