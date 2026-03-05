@@ -33,6 +33,7 @@ resize();
 window.addEventListener('resize', resize);
 
 const cam = { x: 0, y: 0 };
+const ARENA_R = 2200;
 let score = 0, totalPoints = 0, life = 5, gameActive = true;
 let mouseX = 0, mouseY = 0;
 let cannonAngle = 0;
@@ -184,6 +185,17 @@ function drawGrid() {
       ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
     }
   }
+  // Arena boundary
+  const { sx: bx, sy: by } = wToS(0, 0);
+  ctx.beginPath(); ctx.arc(bx, by, ARENA_R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(220,80,30,0.7)';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = 'rgba(255,100,30,0.5)';
+  ctx.shadowBlur = 10;
+  ctx.setLineDash([14, 12]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -446,6 +458,11 @@ function loop(now) {
     if (keys['ArrowDown']  || keys['KeyS']) my += spd;
     if (mx && my) { mx *= 0.7071; my *= 0.7071; }
     cam.x += mx * dtf; cam.y += my * dtf;
+    const distFromCenter = Math.sqrt(cam.x * cam.x + cam.y * cam.y);
+    if (distFromCenter > ARENA_R) {
+      const scale = ARENA_R / distFromCenter;
+      cam.x *= scale; cam.y *= scale;
+    }
 
     cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
 
@@ -511,7 +528,7 @@ function loop(now) {
           eBullets.splice(i, 1);
           life--; hitFlash = 1.3; invincible = 80;
           explode(cam.x, cam.y, '#ff2222', 25);
-          if (life <= 0) triggerGameOver();
+          if (life <= 0) { triggerGameOver(); break; }
           continue;
         }
       }

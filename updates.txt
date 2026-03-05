@@ -1,3 +1,14 @@
+## [2026-03-05] Anti-cheese Arena & Crash Fix (build 18 → 19)
+
+### Gameplay
+- Added circular arena boundary (radius 2200) — player is hard-clamped at the edge, preventing infinite directional movement cheese
+- Arena boundary drawn as a glowing orange dashed ring on the grid
+
+### Bug Fix
+- Fixed crash `Cannot read properties of undefined (reading 'x')` — when the last life was lost with multiple enemy bullets active, `triggerGameOver()` cleared the `eBullets` array mid-loop causing undefined access; fixed with `break` after game over
+
+---
+
 ## [2026-03-05] Bug Fixes & Polish (build 17)
 
 ### Bug Fixes
