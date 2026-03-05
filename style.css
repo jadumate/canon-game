@@ -310,27 +310,13 @@ canvas {
   transform: translateX(2px);
 }
 
-.upg-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.upg-icon {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 1rem;
+.upg-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.56rem;
   font-weight: 700;
   color: #cc4400;
-  letter-spacing: 3px;
+  letter-spacing: 1.5px;
   line-height: 1;
-}
-
-.upg-key {
-  font-family: 'Orbitron', monospace;
-  font-size: 0.46rem;
-  color: #cc440077;
-  letter-spacing: 1px;
 }
 
 .upg-cost {

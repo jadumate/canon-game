@@ -1,3 +1,17 @@
+## [2026-03-05] Bug Fixes & Polish (build 17)
+
+### Bug Fixes
+- Fixed nickname input box not available on 2nd+ game over — submit button was left `disabled` after a successful submission and never re-enabled on restart
+- Fixed "WAVE 1 — Difficulty increased!" false alarm firing immediately on game start — `lastWave` now initialises to `1`
+- Fixed HUD score values displaying raw integers — now formatted with `toLocaleString()` (e.g. `12,345`) to match leaderboard display
+- Fixed frozen bullets/enemies/particles rendering behind the game over overlay — arrays are now cleared on game over
+- Removed orphaned CSS classes (`.upg-head`, `.upg-icon`, `.upg-key`) and added missing `.upg-title` rule
+
+### Visual
+- Crosshair recoloured to game-orange (`#ff6b1a`) with outer ring, thicker dashed arms, glowing center dot — much more visible on the light background
+
+---
+
 ## [2026-03-04] UX Fixes (build 16)
 
 ### Game Over / Leaderboard

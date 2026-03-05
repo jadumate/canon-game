@@ -39,7 +39,7 @@ let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 
 // ── DIFFICULTY ──
-let elapsedSec = 0, lastWave = 0;
+let elapsedSec = 0, lastWave = 1;
 
 function getWave()              { return Math.floor(elapsedSec / 30) + 1; }
 function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20), 20); }
@@ -274,14 +274,24 @@ function drawVignette() {
 
 function drawCrosshair() {
   ctx.save();
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(mouseX - 14, mouseY); ctx.lineTo(mouseX + 14, mouseY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(mouseX, mouseY - 14); ctx.lineTo(mouseX, mouseY + 14); ctx.stroke();
+  // outer arms
+  ctx.strokeStyle = 'rgba(255,107,26,0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(mouseX - 16, mouseY); ctx.lineTo(mouseX + 16, mouseY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(mouseX, mouseY - 16); ctx.lineTo(mouseX, mouseY + 16); ctx.stroke();
   ctx.setLineDash([]);
-  ctx.beginPath(); ctx.arc(mouseX, mouseY, 4, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(200,70,0,0.65)'; ctx.stroke();
+  // outer ring
+  ctx.beginPath(); ctx.arc(mouseX, mouseY, 7, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,107,26,0.9)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // center dot
+  ctx.beginPath(); ctx.arc(mouseX, mouseY, 2.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff6b1a';
+  ctx.shadowColor = '#ff6b1a';
+  ctx.shadowBlur = 6;
+  ctx.fill();
   ctx.restore();
 }
 
@@ -299,8 +309,8 @@ function tickFPS(now) {
 }
 
 function updateUI() {
-  document.getElementById('score-val').textContent = score;
-  document.getElementById('total-val').textContent = totalPoints;
+  document.getElementById('score-val').textContent = score.toLocaleString();
+  document.getElementById('total-val').textContent = totalPoints.toLocaleString();
   const w = getWave();
   document.getElementById('wave-val').textContent = w;
   for (let i = 0; i < 5; i++) {
@@ -317,10 +327,12 @@ function updateUI() {
 
 function triggerGameOver() {
   gameActive = false;
-  document.getElementById('final-score').textContent = totalPoints;
+  bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
+  document.getElementById('final-score').textContent = totalPoints.toLocaleString();
   document.getElementById('final-wave').textContent = getWave();
   document.getElementById('lb-form').style.display = '';
   document.getElementById('lb-status').textContent = '';
+  document.getElementById('lb-submit-btn').disabled = false;
   document.getElementById('lb-name').value = localStorage.getItem('cannonPlayerName') || '';
   document.getElementById('msg-overlay').classList.add('show');
   document.getElementById('msg-overlay').scrollTop = 0;
@@ -400,7 +412,7 @@ function restartGame() {
     document.getElementById('lv-' + k).textContent = 'LV 1';
   });
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
-  elapsedSec = 0; lastWave = 0;
+  elapsedSec = 0; lastWave = 1;
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
