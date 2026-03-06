@@ -48,12 +48,11 @@ function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); 
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
 function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 3.04 + elapsedSec * 0.015; }
-function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 6); }
+function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 3); }
 
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
-  handleKey(e.code);
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
     e.preventDefault();
   }
@@ -63,38 +62,14 @@ window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clien
 
 const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1 };
 
-function getUpgCost(type) {
-  return Math.round(1000 * Math.pow(1.15, upg[type] - 1));
-}
-
-function upgrade(type) {
-  if (!gameActive) return;
-  const cost = getUpgCost(type);
-  if (score >= cost) {
-    score -= cost;
-    upg[type]++;
-    document.getElementById('lv-' + type).textContent = 'LV ' + upg[type];
-    feed('UPGRADE ' + type.toUpperCase() + ' → LV' + upg[type]);
-  } else {
-    feed('NOT ENOUGH SCORE (need ' + cost + ')');
-  }
-}
-
-function handleKey(code) {
-  if (code === 'KeyU') upgrade('size');
-  if (code === 'KeyI') upgrade('speed');
-  if (code === 'KeyO') upgrade('rate');
-  if (code === 'KeyY') upgrade('move');
-  if (code === 'KeyP') upgrade('dmg');
-}
 
 function getBR() { return 5 + (upg.size - 1) * 3; }
 function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [];
-let shotTimer = 0, enemyTimer = 0, scoreTimer = 0;
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [];
+let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
@@ -133,6 +108,63 @@ function enemyFire(e) {
     r: 7, life: 240
   });
   e.canonAngle = a;
+}
+
+// ── PICKUPS ──
+const PICKUP_DEFS = [
+  { type: 'move',  color: '#ff3344', label: 'MOV', name: 'Move Speed' },
+  { type: 'size',  color: '#3399ff', label: 'SIZ', name: 'Blt.Size'   },
+  { type: 'speed', color: '#ff8800', label: 'VEL', name: 'Blt.Speed'  },
+  { type: 'rate',  color: '#aa44ff', label: 'RTE', name: 'Fire Rate'  },
+  { type: 'dmg',   color: '#aaaaaa', label: 'PWR', name: 'Blt.Power'  },
+  { type: 'heart', color: '#ff44aa', label: '♥',   name: 'Heart'      },
+  { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
+];
+const PICKUP_R = 11;
+const PICKUP_INTERVAL = 15000;
+const MAX_PICKUPS = 7;
+
+function spawnFloat(wx, wy, text, color) {
+  floatTexts.push({ x: wx, y: wy, text, color, life: 1.0 });
+}
+
+function spawnPickup() {
+  if (pickups.length >= MAX_PICKUPS) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 100 + Math.random() * 280;
+  let px = cam.x + Math.cos(a) * d;
+  let py = cam.y + Math.sin(a) * d;
+  const pdist = Math.sqrt(px * px + py * py);
+  if (pdist > ARENA_R - 80) { px *= (ARENA_R - 80) / pdist; py *= (ARENA_R - 80) / pdist; }
+  const def = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
+  pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, ...def });
+}
+
+function drawPickup(p) {
+  const { sx, sy } = wToS(p.x, p.y + Math.sin(p.bob) * 5);
+  ctx.save();
+  // outer pulse ring
+  const pulse = (Math.sin(p.bob * 2) * 0.5 + 0.5);
+  ctx.beginPath(); ctx.arc(sx, sy, p.r * (1.6 + pulse * 0.5), 0, Math.PI * 2);
+  ctx.strokeStyle = p.color; ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.35 + pulse * 0.25;
+  ctx.stroke();
+  // glow fill
+  ctx.globalAlpha = 0.92;
+  ctx.shadowColor = p.color; ctx.shadowBlur = 14;
+  const g = ctx.createRadialGradient(sx - p.r * 0.3, sy - p.r * 0.3, 1, sx, sy, p.r);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.4, p.color);
+  g.addColorStop(1, p.color + '99');
+  ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
+  ctx.fillStyle = g; ctx.fill();
+  // label
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(p.label, sx, sy);
+  ctx.restore();
 }
 
 function explode(wx, wy, col, n = 20) {
@@ -328,9 +360,6 @@ function updateUI() {
   for (let i = 0; i < 5; i++) {
     document.getElementById('h' + i).classList.toggle('dead', i >= life);
   }
-  ['size', 'speed', 'rate', 'move', 'dmg'].forEach(k => {
-    document.getElementById('cost-' + k).textContent = getUpgCost(k) + ' pts';
-  });
   if (w > lastWave) {
     lastWave = w;
     feed('⚠ WAVE ' + w + ' — Difficulty increased!');
@@ -420,9 +449,7 @@ function restartGame() {
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1;
-  ['size', 'speed', 'rate', 'move', 'dmg'].forEach(k => {
-    document.getElementById('lv-' + k).textContent = 'LV 1';
-  });
+  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   elapsedSec = 0; lastWave = 1;
   document.getElementById('msg-overlay').classList.remove('show');
@@ -536,6 +563,47 @@ function loop(now) {
 
     if (invincible > 0) invincible -= dtf;
 
+    // Pickup spawning
+    pickupTimer += dt;
+    if (pickupTimer >= PICKUP_INTERVAL) { pickupTimer = 0; spawnPickup(); }
+
+    // Pickup bob + player collision
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      const p = pickups[i];
+      p.bob += 0.04 * dtf;
+      const dx = p.x - cam.x, dy = p.y - cam.y;
+      if (dx * dx + dy * dy < (p.r + 24) ** 2) {
+        if (p.type === 'heart') {
+          if (life < 5) { life++; spawnFloat(p.x, p.y, '+1 Heart', p.color); feed('PICKUP! +1 HEART (' + life + '/5)'); }
+          else { spawnFloat(p.x, p.y, 'Heart FULL', p.color); feed('PICKUP! HEART — ALREADY FULL'); }
+        } else if (p.type === 'pts') {
+          const bonus = 100 * getWave();
+          score += bonus; totalPoints += bonus;
+          spawnFloat(p.x, p.y, '+' + bonus.toLocaleString() + ' Points', p.color);
+          feed('PICKUP! +' + bonus.toLocaleString() + ' POINTS');
+        } else {
+          if (upg[p.type] < 10) {
+            upg[p.type]++;
+            spawnFloat(p.x, p.y, p.name + ' +1', p.color);
+            feed('PICKUP! ' + p.name + ' → LV' + upg[p.type]);
+          } else {
+            spawnFloat(p.x, p.y, p.name + ' MAX', p.color);
+            feed('PICKUP! ' + p.name + ' — MAX LEVEL');
+          }
+        }
+        explode(p.x, p.y, p.color, 22);
+        pickups.splice(i, 1);
+      }
+    }
+
+    // Float texts
+    for (let i = floatTexts.length - 1; i >= 0; i--) {
+      const ft = floatTexts[i];
+      ft.y -= 0.6 * dtf;
+      ft.life -= 0.018 * dtf;
+      if (ft.life <= 0) floatTexts.splice(i, 1);
+    }
+
     // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -553,6 +621,20 @@ function loop(now) {
     ctx.globalAlpha = Math.max(0, p.life / 60);
     ctx.fillStyle = p.col; ctx.shadowColor = p.col; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  });
+
+  pickups.forEach(p => drawPickup(p));
+
+  floatTexts.forEach(ft => {
+    const { sx, sy } = wToS(ft.x, ft.y);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, ft.life);
+    ctx.font = 'bold 20px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#444444';
+    ctx.fillText(ft.text, sx, sy);
     ctx.restore();
   });
 

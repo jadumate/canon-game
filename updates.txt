@@ -1,3 +1,30 @@
+## [2026-03-06] Pickup-Only Upgrade System (build 20 → 28)
+
+### Gameplay — Pickup System
+- Added world-space pickup orbs spawning every 15s near the player (max 7 on map, capped to arena boundary)
+- 7 pickup types, each gives a free instant upgrade on touch:
+  - Red — Move Speed
+  - Blue — Blt.Size
+  - Orange — Blt.Speed
+  - Violet — Fire Rate
+  - Gray — Blt.Power
+  - Pink (♥) — +1 Heart (capped at 5; shows "FULL" if already max)
+  - Green (PTS) — +100 × wave Points (added to both Point and Total)
+- All upgrade types capped at LV 10
+- On collection: colored text floats up from pickup position and fades out (20px bold dark gray, no decoration)
+- Pickup explodes with particles on collection
+
+### Design Change — Removed Point-Spend Upgrade System
+- Removed upgrade panel (buttons) and keyboard shortcuts (U/I/O/P/Y)
+- Removed `upgrade()`, `getUpgCost()`, `handleKey()` functions
+- Score (Point/Total) is now purely for leaderboard — no longer spent on upgrades
+- About modal controls updated to reflect pickup-only upgrade mechanic
+
+### Enemy Tuning
+- Reduced enemy fire rate scaling: coefficient `6 → 3` (reaches minimum rate twice as slowly)
+
+---
+
 ## [2026-03-05] Anti-cheese Arena & Crash Fix (build 18 → 19)
 
 ### Gameplay
