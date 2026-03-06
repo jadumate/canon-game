@@ -145,7 +145,7 @@ function spawnPickup() {
   const pdist = Math.sqrt(px * px + py * py);
   if (pdist > ARENA_R - 80) { px *= (ARENA_R - 80) / pdist; py *= (ARENA_R - 80) / pdist; }
   const def = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
-  pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, ...def });
+  pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 0, ...def });
 }
 
 function drawPickup(p) {
@@ -172,6 +172,13 @@ function drawPickup(p) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
   ctx.fillText(p.label, sx, sy);
+  // morph flash burst
+  if (p.flash > 0) {
+    ctx.globalAlpha = p.flash * 0.8;
+    ctx.beginPath(); ctx.arc(sx, sy, p.r * (1.5 + (1 - p.flash) * 2), 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -515,7 +522,7 @@ function loop(now) {
     const espd = getEnemySpeed();
     enemies.forEach(e => {
       e.aliveTime += dt;
-      if (!e.awakened && e.aliveTime >= 30000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
+      if (!e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
       const spdMul = e.awakened ? 1.7 : 1;
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
@@ -584,6 +591,13 @@ function loop(now) {
     for (let i = pickups.length - 1; i >= 0; i--) {
       const p = pickups[i];
       p.bob += 0.04 * dtf;
+      p.morphTimer += dt;
+      if (p.flash > 0) p.flash -= dtf * 0.08;
+      if (p.morphTimer >= 5000) {
+        p.morphTimer = 0; p.flash = 1;
+        const next = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
+        p.type = next.type; p.color = next.color; p.label = next.label; p.name = next.name;
+      }
       const dx = p.x - cam.x, dy = p.y - cam.y;
       if (dx * dx + dy * dy < (p.r + 24) ** 2) {
         if (p.type === 'heart') {

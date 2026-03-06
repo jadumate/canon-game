@@ -1,3 +1,14 @@
+## [2026-03-06] Pickup Morphing & Awakened Tuning (build 35)
+
+### Gameplay — Pickup Morphing
+- Pickups now cycle to a random new type every 5 seconds
+- Visual flash burst ring effect plays on each morph transition
+
+### Gameplay — Awakened Enemy Tuning
+- Awakened threshold increased from 30s → 60s (more time before enemies go berserk)
+
+---
+
 ## [2026-03-06] Anti-Cheese & Awakened Enemies (build 29 → 34)
 
 ### HUD
