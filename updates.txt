@@ -1,3 +1,32 @@
+## [2026-03-06] Anti-Cheese & Awakened Enemies (build 29 → 34)
+
+### HUD
+- Merged POINT + TOTAL into a single `X,XXX pts` display (totalPoints only)
+- HUD layout changed to vertical: score on top, divider, hearts below
+
+### Leaderboard
+- Added `clear.php` — secret-key-protected DELETE endpoint
+- Added `config.php` — centralized secret key (`CLEAR_SECRET_KEY`)
+- `.htaccess` updated to block direct access to `config.php`
+- `publish.sh` updated to include `clear.php` and `config.php`
+- Added Leaderboard link to hamburger menu
+
+### Gameplay — Awakened Enemies
+- Enemies alive for 30+ seconds enter **Awakened** state:
+  - Move speed ×1.7
+  - Bullet speed ×1.2, bullet size ×1.5 (orange-red color)
+  - Visual: spiky rotating ring with red glow, body turns red/orange
+  - "AWAKENED!" float text on transformation
+- Enemies now wait 1 second after spawning before firing
+- Float text font changed to Orbitron
+
+### Anti-Cheese — Directional Spawning
+- Enemies now spawn in a ±90° cone ahead of the player's movement direction
+- Smoothed move vector tracks player input each frame
+- Standing still falls back to fully random spawn angle
+
+---
+
 ## [2026-03-06] Pickup-Only Upgrade System (build 20 → 28)
 
 ### Gameplay — Pickup System

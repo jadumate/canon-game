@@ -70,6 +70,7 @@ function getBD() { return upg.dmg; }
 
 const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0;
+let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
@@ -78,7 +79,10 @@ function fireBullet() {
 
 function spawnEnemy() {
   if (enemies.length >= getMaxEnemies()) return;
-  const a = Math.random() * Math.PI * 2;
+  const moveLen = Math.sqrt(playerMoveX * playerMoveX + playerMoveY * playerMoveY);
+  const a = moveLen > 0.3
+    ? Math.atan2(playerMoveY, playerMoveX) + (Math.random() - 0.5) * Math.PI
+    : Math.random() * Math.PI * 2;
   const d = 420 + Math.random() * 220;
   const hue = 180 + Math.random() * 80;
   const hp = getEnemyHP();
@@ -87,7 +91,10 @@ function spawnEnemy() {
     y: cam.y + Math.sin(a) * d,
     vx: 0, vy: 0, r: 22,
     hp, maxHp: hp,
-    shootTimer: Math.random() * 1500,
+    shootTimer: 0,
+    spawnDelay: 1000,
+    aliveTime: 0,
+    awakened: false,
     shootInterval: getEnemyShootInterval(),
     canonAngle: 0,
     bob: Math.random() * Math.PI * 2,
@@ -99,13 +106,14 @@ function spawnEnemy() {
 function enemyFire(e) {
   const dx = cam.x - e.x, dy = cam.y - e.y;
   const a = Math.atan2(dy, dx);
-  const spd = getEnemyBulletSpeed();
+  const spd = getEnemyBulletSpeed() * (e.awakened ? 1.2 : 1);
+  const br = e.awakened ? 10.5 : 7;
   eBullets.push({
     x: e.x + Math.cos(a) * (e.r + 8),
     y: e.y + Math.sin(a) * (e.r + 8),
     vx: Math.cos(a) * spd,
     vy: Math.sin(a) * spd,
-    r: 7, life: 240
+    r: br, life: 240, awakened: e.awakened
   });
   e.canonAngle = a;
 }
@@ -353,8 +361,7 @@ function tickFPS(now) {
 }
 
 function updateUI() {
-  document.getElementById('score-val').textContent = score.toLocaleString();
-  document.getElementById('total-val').textContent = totalPoints.toLocaleString();
+  document.getElementById('score-val').textContent = totalPoints.toLocaleString() + ' pts';
   const w = getWave();
   document.getElementById('wave-val').textContent = w;
   for (let i = 0; i < 5; i++) {
@@ -451,6 +458,7 @@ function restartGame() {
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1;
   pickups.length = 0; pickupTimer = 0; floatTexts.length = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
+  playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
   document.getElementById('msg-overlay').classList.remove('show');
 }
@@ -484,6 +492,8 @@ function loop(now) {
     if (keys['ArrowUp']    || keys['KeyW']) my -= spd;
     if (keys['ArrowDown']  || keys['KeyS']) my += spd;
     if (mx && my) { mx *= 0.7071; my *= 0.7071; }
+    playerMoveX = playerMoveX * 0.9 + mx * 0.1;
+    playerMoveY = playerMoveY * 0.9 + my * 0.1;
     cam.x += mx * dtf; cam.y += my * dtf;
     const distFromCenter = Math.sqrt(cam.x * cam.x + cam.y * cam.y);
     if (distFromCenter > ARENA_R) {
@@ -504,15 +514,18 @@ function loop(now) {
     // Enemy AI
     const espd = getEnemySpeed();
     enemies.forEach(e => {
+      e.aliveTime += dt;
+      if (!e.awakened && e.aliveTime >= 30000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
+      const spdMul = e.awakened ? 1.7 : 1;
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      if (d > 85) { e.vx += (dx / d) * espd * dtf; e.vy += (dy / d) * espd * dtf; }
+      if (d > 85) { e.vx += (dx / d) * espd * spdMul * dtf; e.vy += (dy / d) * espd * spdMul * dtf; }
       e.vx *= Math.pow(0.92, dtf); e.vy *= Math.pow(0.92, dtf);
       e.x += e.vx * dtf; e.y += e.vy * dtf;
       e.bob += 0.03 * dtf;
       e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
-      e.shootTimer += dt;
-      if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); }
+      if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
+      else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
     });
 
     // Player bullet collisions
@@ -630,7 +643,7 @@ function loop(now) {
     const { sx, sy } = wToS(ft.x, ft.y);
     ctx.save();
     ctx.globalAlpha = Math.max(0, ft.life);
-    ctx.font = 'bold 20px monospace';
+    ctx.font = 'bold 20px Orbitron, monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#444444';
@@ -640,7 +653,7 @@ function loop(now) {
 
   eBullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
-    drawBullet(sx, sy, b.r, '#66ddff', '#0066bb');
+    drawBullet(sx, sy, b.r, b.awakened ? '#ff4400' : '#66ddff', b.awakened ? '#990000' : '#0066bb');
   });
 
   bullets.forEach(b => {
@@ -654,7 +667,28 @@ function loop(now) {
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
     const { sx, sy } = wToS(e.x, e.y + bob);
-    drawChar(sx, sy, e.canonAngle, false, e.color, e.r);
+    if (e.awakened) {
+      ctx.save();
+      ctx.translate(sx, sy);
+      const spikes = 8, ir = e.r * 1.15, or = e.r * 1.65;
+      ctx.beginPath();
+      for (let i = 0; i < spikes * 2; i++) {
+        const ang = (i * Math.PI / spikes) + e.bob * 0.5;
+        const rad = i % 2 === 0 ? or : ir;
+        i === 0 ? ctx.moveTo(Math.cos(ang) * rad, Math.sin(ang) * rad)
+                : ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(255,50,0,0.25)';
+      ctx.shadowColor = '#ff3300';
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.strokeStyle = '#ff4400';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+    drawChar(sx, sy, e.canonAngle, false, e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
     ctx.save();
     ctx.fillStyle = 'rgba(200,210,230,0.8)';
     ctx.fillRect(sx - 24, sy - 38, 48, 6);

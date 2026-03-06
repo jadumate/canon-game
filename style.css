@@ -115,8 +115,8 @@ canvas {
   top: 14px;
   right: 18px;
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 0;
   z-index: 100;
   background: transparent;
@@ -131,33 +131,15 @@ canvas {
 }
 
 #hud-div {
-  width: 1px;
-  height: 32px;
+  width: 100%;
+  height: 1px;
   background: #dde0ee;
-  margin: 0 12px;
+  margin: 6px 0;
   flex-shrink: 0;
 }
 
 #score-box {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
   text-align: right;
-}
-
-.score-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-#score-label {
-  font-family: 'Orbitron', monospace;
-  font-size: 0.44rem;
-  letter-spacing: 3px;
-  color: #cc4400aa;
-  text-transform: uppercase;
 }
 
 #score-val {
@@ -166,26 +148,6 @@ canvas {
   color: #cc4400;
   text-shadow: 0 0 8px #ff6b1a22;
   line-height: 1;
-  min-width: 60px;
-  text-align: right;
-}
-
-#total-label {
-  font-family: 'Orbitron', monospace;
-  font-size: 0.44rem;
-  letter-spacing: 3px;
-  color: #33668899;
-  text-transform: uppercase;
-}
-
-#total-val {
-  font-family: 'Orbitron', monospace;
-  font-size: 1.1rem;
-  color: #336688;
-  text-shadow: 0 0 6px #33668822;
-  line-height: 1;
-  min-width: 60px;
-  text-align: right;
 }
 
 .heart {

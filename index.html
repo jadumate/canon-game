@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>CANNON BLASTER</title>
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=34">
 </head>
 <body>
   <canvas id="c"></canvas>
@@ -18,13 +18,20 @@
     <div class="menu-item" onclick="openAbout()">
       <span class="menu-icon">ℹ️</span> About
     </div>
+    <a class="menu-item" href="leaderboard/" target="_blank" rel="noopener">
+      <span class="menu-icon">🏆</span> Leaderboard
+    </a>
     <a class="menu-item" href="https://github.com/jadumate/canon-game/" target="_blank" rel="noopener">
       <span class="menu-icon">🐙</span> Open Source · GitHub
     </a>
   </div>
 
-  <!-- HUD PANEL (top-right): hearts | scores -->
+  <!-- HUD PANEL (top-right): scores (top) | divider | hearts (bottom) -->
   <div id="hud-panel">
+    <div id="score-box">
+      <span id="score-val">0 pts</span>
+    </div>
+    <div id="hud-div"></div>
     <div id="life-bar">
       <div class="heart" id="h0">
         <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -57,23 +64,12 @@
         </svg>
       </div>
     </div>
-    <div id="hud-div"></div>
-    <div id="score-box">
-      <div class="score-row">
-        <span id="score-label">POINT</span>
-        <span id="score-val">0</span>
-      </div>
-      <div class="score-row">
-        <span id="total-label">TOTAL</span>
-        <span id="total-val">0</span>
-      </div>
-    </div>
   </div>
 
   <!-- SITE TITLE (top-center) -->
   <div id="site-title">
     <div id="site-name">EmptyBoard.com</div>
-    <div id="site-build">build no. 28</div>
+    <div id="site-build">build no. 34</div>
   </div>
 
   <!-- WAVE (top-center) -->
@@ -127,6 +123,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=28"></script>
+  <script src="game.js?v=34"></script>
 </body>
 </html>
