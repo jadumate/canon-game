@@ -222,6 +222,38 @@ canvas {
   line-height: 1.1;
 }
 
+/* ── UPGRADE STATUS (bottom-right) ── */
+#upg-status {
+  position: fixed;
+  bottom: 14px;
+  right: 18px;
+  display: flex;
+  gap: 10px;
+  z-index: 100;
+  align-items: flex-end;
+}
+
+.upg-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.upg-stat-label {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.42rem;
+  letter-spacing: 1px;
+  opacity: 0.65;
+}
+
+.upg-stat-val {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
 /* ── FPS (bottom-left) ── */
 #fps-box {
   position: fixed;

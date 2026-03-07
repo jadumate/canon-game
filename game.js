@@ -60,7 +60,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
-const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1 };
+const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1 };
 
 
 function getBR() { return 5 + (upg.size - 1) * 3; }
@@ -68,13 +68,18 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0;
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
-  bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r, life: 200 });
+  const pierceRate = (1 + (upg.pierce - 1) * 2) / 100;
+  if (Math.random() < pierceRate) {
+    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
+  } else {
+    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r, life: 200 });
+  }
 }
 
 function spawnEnemy() {
@@ -95,6 +100,7 @@ function spawnEnemy() {
     spawnDelay: 1000,
     aliveTime: 0,
     awakened: false,
+    speedMul: 0.9 + Math.random() * 0.2,
     shootInterval: getEnemyShootInterval(),
     canonAngle: 0,
     bob: Math.random() * Math.PI * 2,
@@ -127,8 +133,11 @@ const PICKUP_DEFS = [
   { type: 'dmg',   color: '#aaaaaa', label: 'PWR', name: 'Blt.Power'  },
   { type: 'heart', color: '#ff44aa', label: '♥',   name: 'Heart'      },
   { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
+  { type: 'pierce', color: '#111111', label: 'PRC', name: 'Pierce'    },
+  { type: 'bomb',   color: '#ffdd00', label: 'BOM', name: 'Bomb'      },
 ];
-const PICKUP_R = 11;
+const UPG_MAX = { size: 8 }; // per-type overrides; default is 10
+const PICKUP_R = 12;
 const PICKUP_INTERVAL = 15000;
 const MAX_PICKUPS = 7;
 
@@ -367,8 +376,23 @@ function tickFPS(now) {
   }
 }
 
+const UPG_STATS = [
+  { key: 'move',  color: '#ff3344', label: 'MOV' },
+  { key: 'size',  color: '#3399ff', label: 'SIZ' },
+  { key: 'speed', color: '#ff8800', label: 'VEL' },
+  { key: 'rate',  color: '#aa44ff', label: 'RTE' },
+  { key: 'dmg',    color: '#aaaaaa', label: 'PWR' },
+  { key: 'pierce', color: '#111111', label: 'PRC' },
+];
+
 function updateUI() {
   document.getElementById('score-val').textContent = totalPoints.toLocaleString() + ' pts';
+  document.getElementById('upg-status').innerHTML = UPG_STATS.map(d =>
+    `<div class="upg-stat">
+      <span class="upg-stat-label" style="color:${d.color}">${d.label}</span>
+      <span class="upg-stat-val"   style="color:${d.color}">+${upg[d.key] - 1}</span>
+    </div>`
+  ).join('');
   const w = getWave();
   document.getElementById('wave-val').textContent = w;
   for (let i = 0; i < 5; i++) {
@@ -462,8 +486,8 @@ function restartGame() {
   score = 0; totalPoints = 0; life = 5; gameActive = true;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1;
-  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0;
+  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1;
+  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
@@ -523,7 +547,7 @@ function loop(now) {
     enemies.forEach(e => {
       e.aliveTime += dt;
       if (!e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
-      const spdMul = e.awakened ? 1.7 : 1;
+      const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
       if (d > 85) { e.vx += (dx / d) * espd * spdMul * dtf; e.vy += (dy / d) * espd * spdMul * dtf; }
@@ -543,10 +567,11 @@ function loop(now) {
       let hit = false;
       for (let j = enemies.length - 1; j >= 0; j--) {
         const e = enemies[j];
+        if (b.pierce && b.hit.has(e)) continue;
         const dx = b.x - e.x, dy = b.y - e.y;
         if (dx * dx + dy * dy < (b.r + e.r) ** 2) {
+          if (b.pierce) b.hit.add(e);
           e.hp -= getBD();
-          bullets.splice(i, 1);
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
@@ -557,8 +582,7 @@ function loop(now) {
             explode(e.x, e.y, e.color, 8);
             score += 20; totalPoints += 20;
           }
-          hit = true;
-          break;
+          if (!b.pierce) { bullets.splice(i, 1); hit = true; break; }
         }
       }
       if (hit) continue;
@@ -608,8 +632,41 @@ function loop(now) {
           score += bonus; totalPoints += bonus;
           spawnFloat(p.x, p.y, '+' + bonus.toLocaleString() + ' Points', p.color);
           feed('PICKUP! +' + bonus.toLocaleString() + ' POINTS');
+        } else if (p.type === 'bomb') {
+          const BOMB_R = 700;
+          let killed = 0;
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            const e = enemies[j];
+            const dx = e.x - cam.x, dy = e.y - cam.y;
+            if (dx * dx + dy * dy <= BOMB_R * BOMB_R) {
+              explode(e.x, e.y, e.color, 20);
+              const bonus = 100 * getWave();
+              score += bonus; totalPoints += bonus;
+              enemies.splice(j, 1);
+              killed++;
+            }
+          }
+          for (let j = eBullets.length - 1; j >= 0; j--) {
+            const b = eBullets[j];
+            const dx = b.x - cam.x, dy = b.y - cam.y;
+            if (dx * dx + dy * dy <= BOMB_R * BOMB_R) eBullets.splice(j, 1);
+          }
+          explode(cam.x, cam.y, '#ffdd00', 60);
+          shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: BOMB_R, life: 1.0 });
+          spawnFloat(p.x, p.y, 'BOOM!', p.color);
+          feed('BOMB! ' + killed + ' ENEMIES CLEARED');
+        } else if (p.type === 'pierce') {
+          if (upg.pierce < 10) {
+            upg.pierce++;
+            const rate = 1 + (upg.pierce - 1) * 2;
+            spawnFloat(p.x, p.y, 'Pierce ' + rate + '%', p.color);
+            feed('PICKUP! PIERCE → ' + rate + '% RATE');
+          } else {
+            spawnFloat(p.x, p.y, 'Pierce MAX', p.color);
+            feed('PICKUP! PIERCE — MAX LEVEL');
+          }
         } else {
-          if (upg[p.type] < 10) {
+          if (upg[p.type] < (UPG_MAX[p.type] ?? 10)) {
             upg[p.type]++;
             spawnFloat(p.x, p.y, p.name + ' +1', p.color);
             feed('PICKUP! ' + p.name + ' → LV' + upg[p.type]);
@@ -631,6 +688,14 @@ function loop(now) {
       if (ft.life <= 0) floatTexts.splice(i, 1);
     }
 
+    // Shockwaves
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+      const sw = shockwaves[i];
+      sw.r += (sw.maxR / 18) * dtf;
+      sw.life -= 0.055 * dtf;
+      if (sw.life <= 0) shockwaves.splice(i, 1);
+    }
+
     // Particles
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -642,6 +707,19 @@ function loop(now) {
   }
 
   // ── DRAW ──
+  shockwaves.forEach(sw => {
+    const { sx, sy } = wToS(sw.x, sw.y);
+    ctx.save();
+    ctx.globalAlpha = sw.life * 0.6;
+    ctx.beginPath(); ctx.arc(sx, sy, sw.r, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffdd00';
+    ctx.lineWidth = 3 + sw.life * 6;
+    ctx.shadowColor = '#ffaa00';
+    ctx.shadowBlur = 20;
+    ctx.stroke();
+    ctx.restore();
+  });
+
   particles.forEach(p => {
     const { sx, sy } = wToS(p.x, p.y);
     ctx.save();
@@ -673,8 +751,9 @@ function loop(now) {
   bullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
     ctx.save();
-    ctx.globalAlpha = Math.min(1, b.life / 20);
-    drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
+    ctx.globalAlpha = b.pierce ? 1 : Math.min(1, b.life / 20);
+    if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
+    else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
     ctx.restore();
   });
 
