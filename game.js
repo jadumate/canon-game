@@ -433,11 +433,11 @@ function showAdOverlay() {
   container.innerHTML = '<div id="ad-fallback">Ad loading...</div>';
   const ins = document.createElement('ins');
   ins.className = 'adsbygoogle';
-  ins.style.cssText = 'display:block;width:100%;min-height:400px;';
+  ins.style.cssText = 'display:block;text-align:center;min-height:250px;width:100%;';
   ins.dataset.adClient = 'ca-pub-2904828185240062';
-  ins.dataset.adSlot = 'XXXXXXXXXX';
-  ins.dataset.adFormat = 'auto';
-  ins.dataset.fullWidthResponsive = 'true';
+  ins.dataset.adSlot = '2883778932';
+  ins.dataset.adLayout = 'in-article';
+  ins.dataset.adFormat = 'fluid';
   container.insertBefore(ins, container.firstChild);
   try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
 
@@ -500,11 +500,16 @@ function submitLeaderboard() {
   const btn = document.getElementById('lb-submit-btn');
   btn.disabled = true;
   document.getElementById('lb-status').textContent = 'Submitting...';
-  fetch('leaderboard/api.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, score: totalPoints, wave: getWave() })
-  })
+  fetch('leaderboard/api.php?action=token')
+    .then(r => r.json())
+    .then(t => {
+      if (!t.ok) throw new Error('token');
+      return fetch('leaderboard/api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, score: totalPoints, wave: getWave(), nonce: t.nonce, token: t.token })
+      });
+    })
     .then(r => r.json())
     .then(d => {
       if (d.ok) {
