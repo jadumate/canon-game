@@ -1,3 +1,31 @@
+## [2026-03-07] New Pickups, Enemy Speed Variance & HUD Polish (build 36 → 37)
+
+### Gameplay — New Pickups
+- **Pierce (PRC, black)** — fires a special bullet that passes through all enemies on its path; bullet does not disappear on hit
+  - Activation rate: 1% base, +2% per level (LV1=1%, LV2=3%, … LV10=19%)
+  - Pierce bullet is 1.5× larger than normal, drawn black with white glow
+- **Bomb (BOM, yellow)** — instant-use pickup; on touch, destroys all enemies and enemy bullets within 700 world units
+  - Scores 100×wave per enemy killed
+  - Shockwave ring expands outward on detonation
+  - No level progression — purely consumable
+
+### Gameplay — Enemy Speed Variance
+- Each enemy now spawns with a random personal speed multiplier (±10% of base)
+- Enemies spread out naturally instead of moving in lockstep
+
+### HUD — Upgrade Status Panel (bottom-right)
+- Added persistent panel showing current level of all 6 upgrades: MOV, SIZ, VEL, RTE, PWR, PRC
+- Each stat displayed as colored `+N` with matching pickup color
+- Build 37: upsized panel — larger fonts (label 0.58rem, value 0.9rem), wider spacing
+
+### Balance
+- Bullet Size (SIZ) max level reduced from 10 → 8
+
+### Visual
+- Pickup icon radius increased 10% (11 → 12)
+
+---
+
 ## [2026-03-06] Pickup Morphing & Awakened Tuning (build 35)
 
 ### Gameplay — Pickup Morphing
