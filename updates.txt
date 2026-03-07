@@ -1,3 +1,36 @@
+## [2026-03-07] Security Hardening (build 40)
+
+### Backend — leaderboard/api.php
+- Added HMAC token system: server issues a one-time `{nonce, token}` via `GET ?action=token`; POST submissions must include valid nonce+token signed with `MAGIC_KEY`
+- Strict format validation on nonce (32 hex chars) and token (64 hex chars) before any processing — prevents DoS via oversized inputs
+- Replay protection: used nonces stored in `used_tokens` table; each token accepted only once
+- Nickname raw input capped at 80 bytes before sanitization to prevent regex DoS
+- `sanitize_input()` helper: strips non-printable/unicode chars, collapses whitespace
+- Rate limiting: max 5 score submissions per IP per minute
+- DB error messages no longer leak internal file paths
+
+### Backend — leaderboard/config.php
+- `CLEAR_SECRET_KEY` rotated from default `changeme` to a strong random key
+- Added `MAGIC_KEY` constant for HMAC signing
+
+---
+
+## [2026-03-07] Continue After Ad & AdSense Integration (build 38 → 39)
+
+### Gameplay — Continue After Ad
+- Added "CONTINUE AFTER AD" button on game over screen (blue, one-time use per session)
+- On click: shows full-screen ad overlay with 5-second countdown before CONTINUE activates
+- After ad: resumes game with all upgrade levels halved (min 1), wave halved, score halved, 3 hearts restored
+- Button hidden after use — cannot continue twice in the same session
+- On full RESTART: continue button resets and becomes available again
+
+### Ads — Google AdSense
+- AdSense script added (`ca-pub-2904828185240062`)
+- Ad `<ins>` element recreated dynamically on each game over so AdSense reloads the ad every time
+- Ad panel: full-width responsive format, enlarged card (max-width 680px, min-height 400px)
+
+---
+
 ## [2026-03-07] New Pickups, Enemy Speed Variance & HUD Polish (build 36 → 37)
 
 ### Gameplay — New Pickups

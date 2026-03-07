@@ -35,6 +35,7 @@ window.addEventListener('resize', resize);
 const cam = { x: 0, y: 0 };
 const ARENA_R = 2200;
 let score = 0, totalPoints = 0, life = 5, gameActive = true;
+let adUsed = false;
 let mouseX = 0, mouseY = 0;
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
@@ -404,6 +405,8 @@ function updateUI() {
   }
 }
 
+let adCountdownInterval = null;
+
 function triggerGameOver() {
   gameActive = false;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
@@ -413,9 +416,82 @@ function triggerGameOver() {
   document.getElementById('lb-status').textContent = '';
   document.getElementById('lb-submit-btn').disabled = false;
   document.getElementById('lb-name').value = localStorage.getItem('cannonPlayerName') || '';
+  const continueBtn = document.getElementById('continue-ad-btn');
+  continueBtn.style.display = adUsed ? 'none' : '';
+  continueBtn.disabled = false;
   document.getElementById('msg-overlay').classList.add('show');
   document.getElementById('msg-overlay').scrollTop = 0;
   fetchLeaderboard();
+}
+
+function showAdOverlay() {
+  document.getElementById('continue-ad-btn').disabled = true;
+  document.getElementById('ad-overlay').classList.add('show');
+
+  // Recreate <ins> element so AdSense reloads the ad each time
+  const container = document.getElementById('ad-container');
+  container.innerHTML = '<div id="ad-fallback">Ad loading...</div>';
+  const ins = document.createElement('ins');
+  ins.className = 'adsbygoogle';
+  ins.style.cssText = 'display:block;width:100%;min-height:400px;';
+  ins.dataset.adClient = 'ca-pub-2904828185240062';
+  ins.dataset.adSlot = 'XXXXXXXXXX';
+  ins.dataset.adFormat = 'auto';
+  ins.dataset.fullWidthResponsive = 'true';
+  container.insertBefore(ins, container.firstChild);
+  try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+
+  // 5-second countdown
+  let t = 5;
+  const timerEl = document.getElementById('ad-timer');
+  const btn = document.getElementById('ad-continue-btn');
+  const countdownText = document.getElementById('ad-countdown-text');
+  btn.disabled = true;
+  timerEl.textContent = t;
+  countdownText.style.display = '';
+
+  if (adCountdownInterval) clearInterval(adCountdownInterval);
+  adCountdownInterval = setInterval(() => {
+    t--;
+    timerEl.textContent = t;
+    if (t <= 0) {
+      clearInterval(adCountdownInterval);
+      adCountdownInterval = null;
+      btn.disabled = false;
+      countdownText.style.display = 'none';
+    }
+  }, 1000);
+}
+
+function continueFromAd() {
+  if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
+  adUsed = true;
+
+  // Halve all upgrade levels (min 1)
+  for (const k of Object.keys(upg)) {
+    upg[k] = Math.max(1, Math.ceil(upg[k] / 2));
+  }
+
+  // Halve elapsed time → halves wave
+  elapsedSec = Math.floor(elapsedSec / 2);
+  lastWave = getWave();
+
+  // Halve score
+  score = Math.floor(score / 2);
+  totalPoints = Math.floor(totalPoints / 2);
+
+  // Restore 3 hearts on continue
+  life = 3;
+
+  // Clear active objects
+  bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
+  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
+  playerMoveX = 0; playerMoveY = 0;
+
+  gameActive = true;
+  document.getElementById('ad-overlay').classList.remove('show');
+  document.getElementById('msg-overlay').classList.remove('show');
 }
 
 function submitLeaderboard() {
@@ -484,6 +560,7 @@ function escHtml(s) {
 
 function restartGame() {
   score = 0; totalPoints = 0; life = 5; gameActive = true;
+  adUsed = false;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1;
@@ -491,6 +568,8 @@ function restartGame() {
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
+  if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
+  document.getElementById('ad-overlay').classList.remove('show');
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
