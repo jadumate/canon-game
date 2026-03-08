@@ -1,3 +1,28 @@
+## [2026-03-08] Ad & Balance Tweaks (build 44 → 45)
+
+### Ads — Continue After Ad
+- Replaced in-article/fluid AdSense unit with autorelaxed format (slot `4131080299`)
+
+### Gameplay — Continue After Ad
+- Upgrade penalty changed from "halve all levels" to "reduce each level by 1" (min 1)
+
+### Balance — Enemy Bullet Speed
+- Base speed reduced 10%: `3.04 → 2.74`
+- Scaling coefficient reduced 10%: `0.015 → 0.0135`
+
+---
+
+## [2026-03-07] Score Submission Token Fix & AdSense Slot (build 41 → 43)
+
+### Bug Fix — Score Submission
+- Fixed `submitLeaderboard()` — frontend was never updated to call `GET ?action=token` before POSTing; now correctly fetches a one-time `{nonce, token}` pair and includes it in the POST body to match the build-40 HMAC backend
+
+### Ads — AdSense Slot
+- Replaced placeholder ad slot ID with real slot ID `2883778932` (in-article / fluid format)
+- Added `min-height` and `text-align: center` to ad `<ins>` element for proper rendering
+
+---
+
 ## [2026-03-07] Security Hardening (build 40)
 
 ### Backend — leaderboard/api.php

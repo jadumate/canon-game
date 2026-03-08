@@ -48,7 +48,7 @@ function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20
 function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); }
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
 function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
-function getEnemyBulletSpeed()  { return 3.04 + elapsedSec * 0.015; }
+function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 3); }
 
 const keys = {};
@@ -435,9 +435,8 @@ function showAdOverlay() {
   ins.className = 'adsbygoogle';
   ins.style.cssText = 'display:block;text-align:center;min-height:250px;width:100%;';
   ins.dataset.adClient = 'ca-pub-2904828185240062';
-  ins.dataset.adSlot = '2883778932';
-  ins.dataset.adLayout = 'in-article';
-  ins.dataset.adFormat = 'fluid';
+  ins.dataset.adSlot = '4131080299';
+  ins.dataset.adFormat = 'autorelaxed';
   container.insertBefore(ins, container.firstChild);
   try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
 
@@ -467,9 +466,9 @@ function continueFromAd() {
   if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
   adUsed = true;
 
-  // Halve all upgrade levels (min 1)
+  // Reduce all upgrade levels by 1 (min 1)
   for (const k of Object.keys(upg)) {
-    upg[k] = Math.max(1, Math.ceil(upg[k] / 2));
+    upg[k] = Math.max(1, upg[k] - 1);
   }
 
   // Halve elapsed time → halves wave
