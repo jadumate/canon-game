@@ -37,6 +37,18 @@ const ARENA_R = 2200;
 let score = 0, totalPoints = 0, life = 5, gameActive = true;
 let adUsed = false;
 let mouseX = 0, mouseY = 0;
+
+// ── MOBILE JOYSTICKS ──
+let isMobile = false;
+const JOY_MAX = 42; // max thumb travel px
+const joyL = { active: false, id: -1, startX: 0, startY: 0, dx: 0, dy: 0 };
+const joyR = { active: false, id: -1, startX: 0, startY: 0 };
+
+function checkMobile() {
+  isMobile = window.innerHeight > window.innerWidth;
+  document.getElementById('mobile-controls').classList.toggle('visible', isMobile);
+}
+window.addEventListener('resize', checkMobile);
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 
@@ -343,23 +355,32 @@ function drawVignette() {
 
 function drawCrosshair() {
   ctx.save();
-  // outer arms
-  ctx.strokeStyle = 'rgba(255,107,26,0.85)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([5, 4]);
-  ctx.beginPath(); ctx.moveTo(mouseX - 16, mouseY); ctx.lineTo(mouseX + 16, mouseY); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(mouseX, mouseY - 16); ctx.lineTo(mouseX, mouseY + 16); ctx.stroke();
-  ctx.setLineDash([]);
-  // outer ring
-  ctx.beginPath(); ctx.arc(mouseX, mouseY, 7, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(255,107,26,0.9)';
-  ctx.lineWidth = 1.5;
+  const cx = mouseX, cy = mouseY;
+  // white glow pass (under everything)
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+  ctx.lineWidth = 4;
+  ctx.shadowColor = '#ffffff';
+  ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.moveTo(cx - 26, cy); ctx.lineTo(cx + 26, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - 26); ctx.lineTo(cx, cy + 26); ctx.stroke();
+  // orange arms
+  ctx.strokeStyle = '#ff6b1a';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#ff6b1a';
+  ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.moveTo(cx - 26, cy); ctx.lineTo(cx + 26, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy - 26); ctx.lineTo(cx, cy + 26); ctx.stroke();
+  // ring
+  ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ff6b1a';
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 12;
   ctx.stroke();
   // center dot
-  ctx.beginPath(); ctx.arc(mouseX, mouseY, 2.5, 0, Math.PI * 2);
-  ctx.fillStyle = '#ff6b1a';
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
   ctx.shadowColor = '#ff6b1a';
-  ctx.shadowBlur = 6;
+  ctx.shadowBlur = 16;
   ctx.fill();
   ctx.restore();
 }
@@ -577,6 +598,73 @@ function restartGame() {
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
+// ── JOYSTICK SETUP ──
+(function setupJoysticks() {
+  checkMobile();
+  const panel = document.getElementById('mobile-controls');
+  const lThumb = document.getElementById('joy-left-thumb');
+  const rThumb = document.getElementById('joy-right-thumb');
+
+  function resetThumb(el) { el.style.transform = 'translate(-50%, -50%)'; }
+
+  panel.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const rect = panel.getBoundingClientRect();
+    for (const t of e.changedTouches) {
+      const isLeft = (t.clientX - rect.left) < rect.width / 2;
+      if (isLeft && !joyL.active) {
+        joyL.active = true; joyL.id = t.identifier;
+        joyL.startX = t.clientX; joyL.startY = t.clientY;
+        joyL.dx = 0; joyL.dy = 0;
+      } else if (!isLeft && !joyR.active) {
+        joyR.active = true; joyR.id = t.identifier;
+        joyR.startX = t.clientX; joyR.startY = t.clientY;
+      }
+    }
+  }, { passive: false });
+
+  panel.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyL.id) {
+        let dx = t.clientX - joyL.startX;
+        let dy = t.clientY - joyL.startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > JOY_MAX) { const s = JOY_MAX / dist; dx *= s; dy *= s; }
+        joyL.dx = dx / JOY_MAX; joyL.dy = dy / JOY_MAX;
+        lThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      } else if (t.identifier === joyR.id) {
+        const dx = t.clientX - joyR.startX;
+        const dy = t.clientY - joyR.startY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 8) {
+          cannonAngle = Math.atan2(dy, dx);
+          const s = dist > JOY_MAX ? JOY_MAX / dist : 1;
+          rThumb.style.transform = `translate(calc(-50% + ${dx * s}px), calc(-50% + ${dy * s}px))`;
+        }
+      }
+    }
+  }, { passive: false });
+
+  function onEnd(e) {
+    for (const t of e.changedTouches) {
+      if (t.identifier === joyL.id) {
+        joyL.active = false; joyL.id = -1; joyL.dx = 0; joyL.dy = 0;
+        resetThumb(lThumb);
+      } else if (t.identifier === joyR.id) {
+        joyR.active = false; joyR.id = -1;
+        resetThumb(rThumb);
+      }
+    }
+  }
+  panel.addEventListener('touchend', onEnd);
+  panel.addEventListener('touchcancel', onEnd);
+
+  // Prevent scroll/zoom on canvas touches
+  canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+  canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+})();
+
 // ── MAIN LOOP ──
 let last = performance.now();
 
@@ -585,6 +673,7 @@ function loop(now) {
   const dt = Math.min(now - last, 50);
   last = now;
   const dtf = dt / 16.667; // normalized delta: 1.0 at 60fps
+  const zoom = isMobile ? Math.max(1.5, 700 / W) : 1;
   tickFPS(now);
 
   ctx.fillStyle = '#f5f6fa';
@@ -601,11 +690,15 @@ function loop(now) {
     // Player movement
     const spd = 3.2 + (upg.move - 1) * 0.8;
     let mx = 0, my = 0;
-    if (keys['ArrowLeft']  || keys['KeyA']) mx -= spd;
-    if (keys['ArrowRight'] || keys['KeyD']) mx += spd;
-    if (keys['ArrowUp']    || keys['KeyW']) my -= spd;
-    if (keys['ArrowDown']  || keys['KeyS']) my += spd;
-    if (mx && my) { mx *= 0.7071; my *= 0.7071; }
+    if (joyL.active) {
+      mx = joyL.dx * spd; my = joyL.dy * spd;
+    } else {
+      if (keys['ArrowLeft']  || keys['KeyA']) mx -= spd;
+      if (keys['ArrowRight'] || keys['KeyD']) mx += spd;
+      if (keys['ArrowUp']    || keys['KeyW']) my -= spd;
+      if (keys['ArrowDown']  || keys['KeyS']) my += spd;
+      if (mx && my) { mx *= 0.7071; my *= 0.7071; }
+    }
     playerMoveX = playerMoveX * 0.9 + mx * 0.1;
     playerMoveY = playerMoveY * 0.9 + my * 0.1;
     cam.x += mx * dtf; cam.y += my * dtf;
@@ -615,7 +708,7 @@ function loop(now) {
       cam.x *= scale; cam.y *= scale;
     }
 
-    cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
+    if (!joyR.active) cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
 
     // Shooting
     shotTimer += dt;
@@ -790,6 +883,11 @@ function loop(now) {
   }
 
   // ── DRAW ──
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-W / 2, -H / 2);
+
   shockwaves.forEach(sw => {
     const { sx, sy } = wToS(sw.x, sw.y);
     ctx.save();
@@ -879,6 +977,8 @@ function loop(now) {
   if (!(invincible > 0 && Math.floor(invincible / 5) % 2 === 0)) {
     drawChar(W / 2, H / 2, cannonAngle, true, 'hsl(21,100%,55%)', 24);
   }
+
+  ctx.restore(); // end zoom transform
 
   drawVignette();
   drawCrosshair();

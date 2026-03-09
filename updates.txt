@@ -1,3 +1,30 @@
+## [2026-03-09] Mobile Controls & Visual Polish (build 46 → 49)
+
+### Mobile — Virtual Joystick Controls
+- Portrait mode (`height > width`) shows transparent joystick strip at bottom of screen
+- Left joystick: moves player body (replaces WASD/arrow keys)
+- Right joystick: rotates cannon (replaces mouse aim)
+- Multi-touch supported: each finger tracked independently by `touch.identifier`
+- Viewport meta tag added (`user-scalable=no`) to prevent pinch-zoom interference
+- `touchstart`/`touchmove` preventDefault on canvas to block scroll/zoom
+
+### Mobile — World Zoom
+- All world-space objects (enemies, bullets, pickups, player, HP bars, particles) scale via `ctx.scale(zoom)` transform centered on screen-center
+- `zoom = max(1.5, 700/W)` on portrait — e.g. ~1.8× on a 390px-wide phone
+- Desktop unaffected (`zoom = 1`)
+- Screen-space UI (crosshair, vignette, hit flash) drawn after transform restore — always full size
+
+### UI — Upgrade Status Panel
+- Lifted to `bottom: 194px` on portrait orientation so it clears the joystick strip
+
+### Visual — Crosshair
+- Arms lengthened 16 → 26px, lineWidth 1.5 → 2.5, dashes removed
+- White glow layer behind orange arms for contrast on any background
+- Ring radius 7 → 12px
+- Center dot 2.5 → 4px, white fill with orange glow
+
+---
+
 ## [2026-03-08] Ad & Balance Tweaks (build 44 → 45)
 
 ### Ads — Continue After Ad
