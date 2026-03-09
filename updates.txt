@@ -1,3 +1,35 @@
+## [2026-03-09] New Pickups, Balance & Mobile Polish (build 50 → 54)
+
+### New Pickup — Minimee (MIN, red/orange)
+- Companion sub-cannon that orbits the player at 0.8× move speed
+- Starts with 10 HP; takes damage from enemy bullets (invincibility frames on hit)
+- Fires automatically at the nearest enemy using the same bullet stats as the player
+- Max 3 companions active at once; disappears when HP reaches 0
+- Colored red/orange to match the player cannon
+
+### New Pickup — Homing (ARW, cyan)
+- Activates randomly per shot — rate follows same formula as Pierce: LV1=1%, LV10=19%
+- On activation: fires a cyan arrowhead bullet aimed directly at the nearest enemy
+- Bullet homes in (steers toward nearest enemy each frame) and one-shots any enemy
+- Drawn as a pointed arrowhead shape with cyan glow
+- ARW stat added to upgrade status panel
+
+### Balance
+- PTS pickup bonus changed to `100 × wave × random(1–10)` (was flat `100 × wave`)
+- Pickup spawn pool biased: lowest-level upgrade pickup added twice, increasing its odds
+- Bullet Size (SIZ) max level reduced 8 → 6
+- Pickup spawn interval reduced 15 000 ms → 14 000 ms
+
+### Visual
+- Heart pickup color changed to bright magenta-pink (`#ff1aff`)
+- Pickup labels now rendered in Orbitron 8px bold with dark shadow (matches upgrade panel)
+
+### Mobile — Ad Overlay Fix
+- Ad overlay changed to `overflow-y: auto` + `align-items: flex-start` so card scrolls instead of being clipped on small screens
+- Ad container min-height reduced: 400 px → 280 px desktop, 200 px portrait
+
+---
+
 ## [2026-03-09] Mobile Controls & Visual Polish (build 46 → 49)
 
 ### Mobile — Virtual Joystick Controls

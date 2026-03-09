@@ -73,7 +73,7 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
-const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1 };
+const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1 };
 
 
 function getBR() { return 5 + (upg.size - 1) * 3; }
@@ -81,15 +81,21 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0;
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
   const pierceRate = (1 + (upg.pierce - 1) * 2) / 100;
+  const arrowRate  = (1 + (upg.arrow  - 1) * 2) / 100;
   if (Math.random() < pierceRate) {
     bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
+  } else if (Math.random() < arrowRate && enemies.length > 0) {
+    let nearestE = null, nearestD = Infinity;
+    enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
+    const aa = nearestE ? Math.atan2(nearestE.y - cam.y, nearestE.x - cam.x) : a;
+    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(aa) * s, vy: Math.sin(aa) * s, r: r * 1.2, life: 500, arrow: true });
   } else {
     bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r, life: 200 });
   }
@@ -144,14 +150,16 @@ const PICKUP_DEFS = [
   { type: 'speed', color: '#ff8800', label: 'VEL', name: 'Blt.Speed'  },
   { type: 'rate',  color: '#aa44ff', label: 'RTE', name: 'Fire Rate'  },
   { type: 'dmg',   color: '#aaaaaa', label: 'PWR', name: 'Blt.Power'  },
-  { type: 'heart', color: '#ff44aa', label: '♥',   name: 'Heart'      },
+  { type: 'heart', color: '#ff1aff', label: '♥',   name: 'Heart'      },
   { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
-  { type: 'pierce', color: '#111111', label: 'PRC', name: 'Pierce'    },
-  { type: 'bomb',   color: '#ffdd00', label: 'BOM', name: 'Bomb'      },
+  { type: 'pierce',  color: '#111111', label: 'PRC', name: 'Pierce'   },
+  { type: 'bomb',    color: '#ffdd00', label: 'BOM', name: 'Bomb'     },
+  { type: 'minimee', color: '#1a3aaa', label: 'MIN', name: 'Minimee'  },
+  { type: 'arrow',   color: '#00ddff', label: 'ARW', name: 'Homing'   },
 ];
-const UPG_MAX = { size: 8 }; // per-type overrides; default is 10
+const UPG_MAX = { size: 6 }; // per-type overrides; default is 10
 const PICKUP_R = 12;
-const PICKUP_INTERVAL = 15000;
+const PICKUP_INTERVAL = 14000;
 const MAX_PICKUPS = 7;
 
 function spawnFloat(wx, wy, text, color) {
@@ -166,7 +174,13 @@ function spawnPickup() {
   let py = cam.y + Math.sin(a) * d;
   const pdist = Math.sqrt(px * px + py * py);
   if (pdist > ARENA_R - 80) { px *= (ARENA_R - 80) / pdist; py *= (ARENA_R - 80) / pdist; }
-  const def = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
+  const pool = [...PICKUP_DEFS];
+  const upgDefs = PICKUP_DEFS.filter(d => upg.hasOwnProperty(d.type));
+  if (upgDefs.length > 0) {
+    const lowest = upgDefs.reduce((a, b) => upg[a.type] <= upg[b.type] ? a : b);
+    pool.push(lowest);
+  }
+  const def = pool[Math.floor(Math.random() * pool.length)];
   pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 0, ...def });
 }
 
@@ -189,8 +203,8 @@ function drawPickup(p) {
   ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
   ctx.fillStyle = g; ctx.fill();
   // label
-  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-  ctx.font = 'bold 7px monospace';
+  ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.globalAlpha = 1;
+  ctx.font = 'bold 8px Orbitron, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
   ctx.fillText(p.label, sx, sy);
@@ -345,6 +359,30 @@ function drawBullet(sx, sy, r, c1, c2) {
   ctx.restore();
 }
 
+function drawArrowBullet(sx, sy, angle, r) {
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(angle);
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = r * 3;
+  ctx.fillStyle = '#00ffff';
+  ctx.beginPath();
+  ctx.moveTo(r * 1.8, 0);
+  ctx.lineTo(-r, -r * 0.75);
+  ctx.lineTo(-r * 0.35, 0);
+  ctx.lineTo(-r, r * 0.75);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath();
+  ctx.moveTo(r * 1.2, 0);
+  ctx.lineTo(-r * 0.2, -r * 0.35);
+  ctx.lineTo(-r * 0.2, r * 0.35);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawVignette() {
   const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.85);
   v.addColorStop(0, 'rgba(245,246,250,0)');
@@ -405,6 +443,7 @@ const UPG_STATS = [
   { key: 'rate',  color: '#aa44ff', label: 'RTE' },
   { key: 'dmg',    color: '#aaaaaa', label: 'PWR' },
   { key: 'pierce', color: '#111111', label: 'PRC' },
+  { key: 'arrow',  color: '#00ddff', label: 'ARW' },
 ];
 
 function updateUI() {
@@ -505,7 +544,7 @@ function continueFromAd() {
 
   // Clear active objects
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0;
+  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
 
@@ -588,8 +627,8 @@ function restartGame() {
   adUsed = false;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1;
-  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0;
+  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
+  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
@@ -735,9 +774,55 @@ function loop(now) {
       else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
     });
 
+    // Minimee AI
+    const miniMaxSpd = (3.2 + (upg.move - 1) * 0.8) * 0.8;
+    minimees.forEach(m => {
+      m.bob += 0.03 * dtf;
+      if (m.invincible > 0) m.invincible -= dtf;
+      // Orbit around player at 70 world units
+      const orbitAngle = m.offsetAngle + elapsedSec * 0.4;
+      const targetX = cam.x + Math.cos(orbitAngle) * 70;
+      const targetY = cam.y + Math.sin(orbitAngle) * 70;
+      const dx = targetX - m.x, dy = targetY - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      m.vx += (dx / dist) * 0.18 * dtf;
+      m.vy += (dy / dist) * 0.18 * dtf;
+      m.vx *= Math.pow(0.88, dtf); m.vy *= Math.pow(0.88, dtf);
+      const spd2 = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
+      if (spd2 > miniMaxSpd) { m.vx *= miniMaxSpd / spd2; m.vy *= miniMaxSpd / spd2; }
+      m.x += m.vx * dtf; m.y += m.vy * dtf;
+      // Shoot at nearest enemy
+      m.shootTimer += dt;
+      if (m.shootTimer >= getFI() && enemies.length > 0) {
+        m.shootTimer = 0;
+        let nearestE = null, nearestD = Infinity;
+        enemies.forEach(e => { const d2 = (e.x - m.x) ** 2 + (e.y - m.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
+        if (nearestE) {
+          const a = Math.atan2(nearestE.y - m.y, nearestE.x - m.x);
+          m.cannonAngle = a;
+          bullets.push({ x: m.x, y: m.y, vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 200 });
+        }
+      }
+    });
+
     // Player bullet collisions
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
+      if (b.arrow && enemies.length > 0) {
+        let nearestE = null, nearestD = Infinity;
+        enemies.forEach(e => { const d2 = (e.x - b.x) ** 2 + (e.y - b.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
+        if (nearestE) {
+          const targetA = Math.atan2(nearestE.y - b.y, nearestE.x - b.x);
+          const curA = Math.atan2(b.vy, b.vx);
+          let diff = targetA - curA;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const turn = Math.max(-0.1, Math.min(0.1, diff)) * dtf;
+          const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+          const newA = curA + turn;
+          b.vx = Math.cos(newA) * spd; b.vy = Math.sin(newA) * spd;
+        }
+      }
       b.x += b.vx * dtf; b.y += b.vy * dtf; b.life -= dtf;
       if (b.life <= 0) { bullets.splice(i, 1); continue; }
       let hit = false;
@@ -747,7 +832,7 @@ function loop(now) {
         const dx = b.x - e.x, dy = b.y - e.y;
         if (dx * dx + dy * dy < (b.r + e.r) ** 2) {
           if (b.pierce) b.hit.add(e);
-          e.hp -= getBD();
+          e.hp -= b.arrow ? e.maxHp : getBD();
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
@@ -779,6 +864,21 @@ function loop(now) {
           continue;
         }
       }
+      // Minimee hit check
+      let miniHit = false;
+      for (let mi = minimees.length - 1; mi >= 0; mi--) {
+        const m = minimees[mi];
+        if (m.invincible > 0) continue;
+        const dmx = b.x - m.x, dmy = b.y - m.y;
+        if (dmx * dmx + dmy * dmy < (b.r + m.r) ** 2) {
+          eBullets.splice(i, 1);
+          m.hp--; m.invincible = 60;
+          explode(m.x, m.y, '#1a3aaa', 10);
+          if (m.hp <= 0) { explode(m.x, m.y, '#1a3aaa', 35); minimees.splice(mi, 1); feed('MINIMEE DESTROYED!'); }
+          miniHit = true; break;
+        }
+      }
+      if (miniHit) continue;
     }
 
     if (invincible > 0) invincible -= dtf;
@@ -804,7 +904,7 @@ function loop(now) {
           if (life < 5) { life++; spawnFloat(p.x, p.y, '+1 Heart', p.color); feed('PICKUP! +1 HEART (' + life + '/5)'); }
           else { spawnFloat(p.x, p.y, 'Heart FULL', p.color); feed('PICKUP! HEART — ALREADY FULL'); }
         } else if (p.type === 'pts') {
-          const bonus = 100 * getWave();
+          const bonus = 100 * getWave() * (Math.floor(Math.random() * 10) + 1);
           score += bonus; totalPoints += bonus;
           spawnFloat(p.x, p.y, '+' + bonus.toLocaleString() + ' Points', p.color);
           feed('PICKUP! +' + bonus.toLocaleString() + ' POINTS');
@@ -831,6 +931,16 @@ function loop(now) {
           shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: BOMB_R, life: 1.0 });
           spawnFloat(p.x, p.y, 'BOOM!', p.color);
           feed('BOMB! ' + killed + ' ENEMIES CLEARED');
+        } else if (p.type === 'minimee') {
+          if (minimees.length < 3) {
+            const offsetAngle = minimees.length * (Math.PI * 2 / 3);
+            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 10, maxHp: 10, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle });
+            spawnFloat(p.x, p.y, 'MINIMEE!', p.color);
+            feed('PICKUP! MINIMEE COMPANION (' + minimees.length + '/3)');
+          } else {
+            spawnFloat(p.x, p.y, 'MIN FULL', p.color);
+            feed('PICKUP! MINIMEE — MAX COMPANIONS');
+          }
         } else if (p.type === 'pierce') {
           if (upg.pierce < 10) {
             upg.pierce++;
@@ -840,6 +950,16 @@ function loop(now) {
           } else {
             spawnFloat(p.x, p.y, 'Pierce MAX', p.color);
             feed('PICKUP! PIERCE — MAX LEVEL');
+          }
+        } else if (p.type === 'arrow') {
+          if (upg.arrow < 10) {
+            upg.arrow++;
+            const rate = 1 + (upg.arrow - 1) * 2;
+            spawnFloat(p.x, p.y, 'Homing ' + rate + '%', p.color);
+            feed('PICKUP! HOMING → ' + rate + '% RATE');
+          } else {
+            spawnFloat(p.x, p.y, 'Homing MAX', p.color);
+            feed('PICKUP! HOMING — MAX LEVEL');
           }
         } else {
           if (upg[p.type] < (UPG_MAX[p.type] ?? 10)) {
@@ -932,8 +1052,9 @@ function loop(now) {
   bullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
     ctx.save();
-    ctx.globalAlpha = b.pierce ? 1 : Math.min(1, b.life / 20);
+    ctx.globalAlpha = (b.pierce || b.arrow) ? 1 : Math.min(1, b.life / 20);
     if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
+    else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
     else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
     ctx.restore();
   });
@@ -971,6 +1092,21 @@ function loop(now) {
     ctx.fillRect(sx - 24, sy - 38, 48 * pct, 6);
     ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
     ctx.strokeRect(sx - 24, sy - 38, 48, 6);
+    ctx.restore();
+  });
+
+  minimees.forEach(m => {
+    const bob = Math.sin(m.bob) * 3;
+    const { sx, sy } = wToS(m.x, m.y + bob);
+    const flash = m.invincible > 0 && Math.floor(m.invincible / 5) % 2 === 0;
+    if (!flash) drawChar(sx, sy, m.cannonAngle, true, 'hsl(21,100%,55%)', m.r);
+    ctx.save();
+    ctx.fillStyle = 'rgba(200,210,230,0.8)';
+    ctx.fillRect(sx - 20, sy - 30, 40, 5);
+    ctx.fillStyle = '#1a6aee';
+    ctx.fillRect(sx - 20, sy - 30, 40 * (m.hp / m.maxHp), 5);
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
+    ctx.strokeRect(sx - 20, sy - 30, 40, 5);
     ctx.restore();
   });
 
