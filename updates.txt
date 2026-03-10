@@ -1,3 +1,38 @@
+## [2026-03-10] Sprout Totem, Performance & Balance (build 55 → 60)
+
+### New World Object — Sprout / Tree Totem
+- Sprouts spawn in the arena every 18s (max 10 total sprouts + trees)
+- Touch a sprout to grow it +1 level (4 touches over 4 seconds, 1s cooldown between each)
+- At level 4 the sprout becomes a Tree: blocks all enemy bullets within 115 world-unit radius for 9.6s
+- Enemies are physically pushed back at the shield boundary and cannot fire while adjacent
+- Trees expire with a particle burst and feed message
+
+### Balance
+- Minimee HP: 10 → 5
+- Tree shield duration: 8s → 9.6s (+20%)
+- Tree shield radius: 100 → 115 (+15%)
+- Pickup morph now uses biased pool (3× weight on lowest-level upgrade)
+- Spawn pool bias kept at 1× (morph only for the stronger bias)
+
+### Performance Optimizations
+- DOM elements cached at startup; updateUI only re-renders on value change
+- `zoom` cached on resize instead of recalculated every frame
+- Vignette pre-rendered to offscreen canvas on resize
+- Grid lines and dots batched into single path calls (10× fewer draw calls)
+- Particle shadow blur removed
+- Bullet shadow blur reduced (r×2.5 → r×1.2)
+- Character cannon shadow blur reduced (10 → 6)
+
+### Low-Spec Auto Mode
+- `lowSpec` flag auto-enables when FPS < 40, disables when FPS > 80
+- In low-spec mode: skips outer glow gradients, shadow blurs on bullets/chars/pickups/shockwaves/tree/crosshair
+- FPS display shows ⚡ indicator when low-spec mode is active
+
+### Bug Fix
+- Fixed TDZ crash: `isMobile` declaration moved before `resize()` call
+
+---
+
 ## [2026-03-09] New Pickups, Balance & Mobile Polish (build 50 → 54)
 
 ### New Pickup — Minimee (MIN, red/orange)

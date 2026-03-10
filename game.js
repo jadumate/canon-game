@@ -23,11 +23,24 @@ function closeAbout(e) {
 // ── CANVAS ──
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
-let W, H;
+let W, H, zoom = 1;
+let vignetteCache = null;
+let isMobile = false;
 
 function resize() {
   W = canvas.width = window.innerWidth;
   H = canvas.height = window.innerHeight;
+  zoom = isMobile ? W / 960 : 1;
+  // Pre-render vignette
+  const vc = document.createElement('canvas');
+  vc.width = W; vc.height = H;
+  const vctx = vc.getContext('2d');
+  const vg = vctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.85);
+  vg.addColorStop(0, 'rgba(245,246,250,0)');
+  vg.addColorStop(1, 'rgba(200,210,230,0.45)');
+  vctx.fillStyle = vg;
+  vctx.fillRect(0, 0, W, H);
+  vignetteCache = vc;
 }
 resize();
 window.addEventListener('resize', resize);
@@ -39,7 +52,6 @@ let adUsed = false;
 let mouseX = 0, mouseY = 0;
 
 // ── MOBILE JOYSTICKS ──
-let isMobile = false;
 const JOY_MAX = 42; // max thumb travel px
 const joyL = { active: false, id: -1, startX: 0, startY: 0, dx: 0, dy: 0 };
 const joyR = { active: false, id: -1, startX: 0, startY: 0 };
@@ -47,6 +59,7 @@ const joyR = { active: false, id: -1, startX: 0, startY: 0 };
 function checkMobile() {
   isMobile = window.innerHeight > window.innerWidth;
   document.getElementById('mobile-controls').classList.toggle('visible', isMobile);
+  zoom = isMobile ? W / 960 : 1;
 }
 window.addEventListener('resize', checkMobile);
 let cannonAngle = 0;
@@ -81,8 +94,10 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [];
-let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0;
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [];
+let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0;
+const SPROUT_INTERVAL = 18000; // ms between sprout spawns
+const SPROUT_SHIELD_R = 115;   // tree bullet-block radius (world units)
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
@@ -184,6 +199,79 @@ function spawnPickup() {
   pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 0, ...def });
 }
 
+function spawnSprout() {
+  if (sprouts.length >= 10) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 180 + Math.random() * 320;
+  let sx = cam.x + Math.cos(a) * d;
+  let sy = cam.y + Math.sin(a) * d;
+  const dist = Math.sqrt(sx * sx + sy * sy);
+  if (dist > ARENA_R - 100) { sx *= (ARENA_R - 100) / dist; sy *= (ARENA_R - 100) / dist; }
+  sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, treeTimer: 0, pulse: 0 });
+}
+
+function drawSprout(s) {
+  const { sx, sy } = wToS(s.x, s.y);
+  ctx.save();
+  if (s.isTree) {
+    const treePulse = (Math.sin(s.pulse) * 0.12 + 0.88);
+    // Shield aura
+    ctx.globalAlpha = 0.10 + Math.sin(s.pulse * 1.3) * 0.05;
+    ctx.beginPath(); ctx.arc(sx, sy, SPROUT_SHIELD_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#33ee66'; ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#22dd55'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    // Trunk
+    ctx.fillStyle = '#7a4f2a';
+    ctx.fillRect(sx - 6, sy - 4, 12, 22);
+    // Canopy layers
+    ctx.fillStyle = '#1db845';
+    if (!lowSpec) { ctx.shadowColor = '#33ff77'; ctx.shadowBlur = 14 * treePulse; }
+    ctx.beginPath(); ctx.arc(sx, sy - 18, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#28d455';
+    ctx.beginPath(); ctx.arc(sx - 12, sy - 8, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx + 12, sy - 8, 16, 0, Math.PI * 2); ctx.fill();
+    // Timer bar
+    const frac = s.treeTimer / (8 * 60);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(sx - 24, sy - 46, 48, 5);
+    ctx.fillStyle = `hsl(${120 * frac}, 80%, 45%)`;
+    ctx.fillRect(sx - 24, sy - 46, 48 * frac, 5);
+  } else {
+    const lv = s.level;
+    // Ground shadow
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(sx, sy + 6, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+    // Stem
+    ctx.strokeStyle = '#3a8a3a'; ctx.lineWidth = 2.5;
+    const stemH = 6 + lv * 5;
+    ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, sy - stemH); ctx.stroke();
+    // Leaves per level
+    ctx.fillStyle = '#33cc55'; ctx.shadowColor = '#33cc55'; ctx.shadowBlur = 6;
+    if (lv >= 1) {
+      ctx.beginPath(); ctx.ellipse(sx - 7, sy - stemH + 4, 7, 4, -0.5, 0, Math.PI * 2); ctx.fill();
+    }
+    if (lv >= 2) {
+      ctx.beginPath(); ctx.ellipse(sx + 8, sy - stemH, 8, 4, 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy - stemH - 2, 6, 0, Math.PI * 2); ctx.fill();
+    }
+    if (lv >= 3) {
+      ctx.fillStyle = '#22aa44';
+      ctx.beginPath(); ctx.arc(sx - 10, sy - stemH - 6, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx + 10, sy - stemH - 6, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(sx, sy - stemH - 12, 9, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
 function drawPickup(p) {
   const { sx, sy } = wToS(p.x, p.y + Math.sin(p.bob) * 5);
   ctx.save();
@@ -195,13 +283,16 @@ function drawPickup(p) {
   ctx.stroke();
   // glow fill
   ctx.globalAlpha = 0.92;
-  ctx.shadowColor = p.color; ctx.shadowBlur = 14;
-  const g = ctx.createRadialGradient(sx - p.r * 0.3, sy - p.r * 0.3, 1, sx, sy, p.r);
-  g.addColorStop(0, '#ffffff');
-  g.addColorStop(0.4, p.color);
-  g.addColorStop(1, p.color + '99');
-  ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
-  ctx.fillStyle = g; ctx.fill();
+  if (!lowSpec) {
+    ctx.shadowColor = p.color; ctx.shadowBlur = 14;
+    const g = ctx.createRadialGradient(sx - p.r * 0.3, sy - p.r * 0.3, 1, sx, sy, p.r);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.4, p.color); g.addColorStop(1, p.color + '99');
+    ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = g; ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color; ctx.fill();
+  }
   // label
   ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.globalAlpha = 1;
   ctx.font = 'bold 8px Orbitron, monospace';
@@ -256,18 +347,18 @@ function drawGrid() {
   ctx.save();
   ctx.strokeStyle = 'rgba(180,190,220,0.38)';
   ctx.lineWidth = 1;
-  for (let x = ox - gs; x < W + gs; x += gs) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = oy - gs; y < H + gs; y += gs) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
+  ctx.beginPath();
+  for (let x = ox - gs; x < W + gs; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  for (let y = oy - gs; y < H + gs; y += gs) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+  ctx.stroke();
   ctx.fillStyle = 'rgba(148,160,200,0.55)';
+  ctx.beginPath();
   for (let x = ox - gs; x < W + gs; x += gs) {
     for (let y = oy - gs; y < H + gs; y += gs) {
-      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.moveTo(x + 2, y); ctx.arc(x, y, 2, 0, Math.PI * 2);
     }
   }
+  ctx.fill();
   // Arena boundary
   const { sx: bx, sy: by } = wToS(0, 0);
   ctx.beginPath(); ctx.arc(bx, by, ARENA_R, 0, Math.PI * 2);
@@ -315,17 +406,24 @@ function drawChar(sx, sy, angle, isPlayer, color, r) {
   ctx.save();
   ctx.translate(sx, sy);
 
-  const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.8);
-  g.addColorStop(0, hslToRgba(color, 0.28));
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2); ctx.fill();
+  if (!lowSpec) {
+    const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.8);
+    g.addColorStop(0, hslToRgba(color, 0.28));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r * 1.8, 0, Math.PI * 2); ctx.fill();
+  }
 
-  const bg = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 1, 0, 0, r);
-  bg.addColorStop(0, brightHsl(color));
-  bg.addColorStop(1, color);
-  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fillStyle = bg; ctx.fill();
+  if (!lowSpec) {
+    const bg = ctx.createRadialGradient(-r * 0.25, -r * 0.25, 1, 0, 0, r);
+    bg.addColorStop(0, brightHsl(color));
+    bg.addColorStop(1, color);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = bg; ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.fill();
+  }
 
   ctx.strokeStyle = isPlayer ? 'rgba(255,100,30,0.5)' : 'rgba(80,160,220,0.5)';
   ctx.lineWidth = 2; ctx.stroke();
@@ -335,8 +433,7 @@ function drawChar(sx, sy, angle, isPlayer, color, r) {
   ctx.lineWidth = 1.5; ctx.stroke();
 
   ctx.rotate(angle);
-  ctx.shadowColor = isPlayer ? '#ff6b1a' : '#44aaff';
-  ctx.shadowBlur = 10;
+  if (!lowSpec) { ctx.shadowColor = isPlayer ? '#ff6b1a' : '#44aaff'; ctx.shadowBlur = 6; }
   ctx.fillStyle = isPlayer ? '#ff8c42' : '#44bbff';
   ctx.beginPath(); ctx.roundRect(r * 0.38, -5, r * 0.95, 10, 3); ctx.fill();
   ctx.shadowBlur = 0;
@@ -349,13 +446,15 @@ function drawChar(sx, sy, angle, isPlayer, color, r) {
 
 function drawBullet(sx, sy, r, c1, c2) {
   ctx.save();
-  ctx.shadowColor = c1;
-  ctx.shadowBlur = r * 2.5;
-  const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3, 1, sx, sy, r);
-  g.addColorStop(0, c1);
-  g.addColorStop(1, c2);
-  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2);
-  ctx.fillStyle = g; ctx.fill();
+  if (!lowSpec) {
+    ctx.shadowColor = c1; ctx.shadowBlur = r * 1.2;
+    const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3, 1, sx, sy, r);
+    g.addColorStop(0, c1); g.addColorStop(1, c2);
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = c1;
+  }
+  ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -363,8 +462,7 @@ function drawArrowBullet(sx, sy, angle, r) {
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(angle);
-  ctx.shadowColor = '#00ffff';
-  ctx.shadowBlur = r * 3;
+  if (!lowSpec) { ctx.shadowColor = '#00ffff'; ctx.shadowBlur = r * 3; }
   ctx.fillStyle = '#00ffff';
   ctx.beginPath();
   ctx.moveTo(r * 1.8, 0);
@@ -384,47 +482,42 @@ function drawArrowBullet(sx, sy, angle, r) {
 }
 
 function drawVignette() {
-  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.85);
-  v.addColorStop(0, 'rgba(245,246,250,0)');
-  v.addColorStop(1, 'rgba(200,210,230,0.45)');
-  ctx.fillStyle = v;
-  ctx.fillRect(0, 0, W, H);
+  if (vignetteCache) ctx.drawImage(vignetteCache, 0, 0);
 }
 
 function drawCrosshair() {
   ctx.save();
   const cx = mouseX, cy = mouseY;
-  // white glow pass (under everything)
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-  ctx.lineWidth = 4;
-  ctx.shadowColor = '#ffffff';
-  ctx.shadowBlur = 10;
-  ctx.beginPath(); ctx.moveTo(cx - 26, cy); ctx.lineTo(cx + 26, cy); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, cy - 26); ctx.lineTo(cx, cy + 26); ctx.stroke();
+  if (!lowSpec) {
+    // white glow pass (under everything)
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.lineWidth = 4;
+    ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.moveTo(cx - 26, cy); ctx.lineTo(cx + 26, cy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx, cy - 26); ctx.lineTo(cx, cy + 26); ctx.stroke();
+  }
   // orange arms
   ctx.strokeStyle = '#ff6b1a';
   ctx.lineWidth = 2.5;
-  ctx.shadowColor = '#ff6b1a';
-  ctx.shadowBlur = 14;
+  if (!lowSpec) { ctx.shadowColor = '#ff6b1a'; ctx.shadowBlur = 14; }
   ctx.beginPath(); ctx.moveTo(cx - 26, cy); ctx.lineTo(cx + 26, cy); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(cx, cy - 26); ctx.lineTo(cx, cy + 26); ctx.stroke();
   // ring
   ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-  ctx.strokeStyle = '#ff6b1a';
-  ctx.lineWidth = 2;
-  ctx.shadowBlur = 12;
+  ctx.strokeStyle = '#ff6b1a'; ctx.lineWidth = 2;
+  if (!lowSpec) { ctx.shadowBlur = 12; }
   ctx.stroke();
   // center dot
   ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2);
   ctx.fillStyle = '#ffffff';
-  ctx.shadowColor = '#ff6b1a';
-  ctx.shadowBlur = 16;
+  if (!lowSpec) { ctx.shadowColor = '#ff6b1a'; ctx.shadowBlur = 16; }
   ctx.fill();
   ctx.restore();
 }
 
 // ── FPS ──
 let fps = 0, fpsFrames = 0, fpsLast = performance.now();
+let lowSpec = false;
 
 function tickFPS(now) {
   fpsFrames++;
@@ -432,7 +525,9 @@ function tickFPS(now) {
     fps = Math.round(fpsFrames / ((now - fpsLast) / 1000));
     fpsFrames = 0;
     fpsLast = now;
-    document.getElementById('fps-box').textContent = 'FPS: ' + fps;
+    if (!lowSpec && fps < 40) { lowSpec = true; }
+    else if (lowSpec && fps > 80) { lowSpec = false; }
+    document.getElementById('fps-box').textContent = 'FPS: ' + fps + (lowSpec ? ' ⚡' : '');
   }
 }
 
@@ -446,22 +541,40 @@ const UPG_STATS = [
   { key: 'arrow',  color: '#00ddff', label: 'ARW' },
 ];
 
+// ── DOM cache ──
+const _dom = {};
+let _uiScore = -1, _uiUpgHash = '', _uiWave = -1, _uiLife = -1;
+function initDomCache() {
+  _dom.scoreVal  = document.getElementById('score-val');
+  _dom.upgStatus = document.getElementById('upg-status');
+  _dom.waveVal   = document.getElementById('wave-val');
+  _dom.hearts    = Array.from({ length: 5 }, (_, i) => document.getElementById('h' + i));
+}
+
 function updateUI() {
-  document.getElementById('score-val').textContent = totalPoints.toLocaleString() + ' pts';
-  document.getElementById('upg-status').innerHTML = UPG_STATS.map(d =>
-    `<div class="upg-stat">
-      <span class="upg-stat-label" style="color:${d.color}">${d.label}</span>
-      <span class="upg-stat-val"   style="color:${d.color}">+${upg[d.key] - 1}</span>
-    </div>`
-  ).join('');
-  const w = getWave();
-  document.getElementById('wave-val').textContent = w;
-  for (let i = 0; i < 5; i++) {
-    document.getElementById('h' + i).classList.toggle('dead', i >= life);
+  if (totalPoints !== _uiScore) {
+    _uiScore = totalPoints;
+    _dom.scoreVal.textContent = totalPoints.toLocaleString() + ' pts';
   }
-  if (w > lastWave) {
-    lastWave = w;
-    feed('⚠ WAVE ' + w + ' — Difficulty increased!');
+  const upgHash = UPG_STATS.map(d => upg[d.key]).join(',');
+  if (upgHash !== _uiUpgHash) {
+    _uiUpgHash = upgHash;
+    _dom.upgStatus.innerHTML = UPG_STATS.map(d =>
+      `<div class="upg-stat">
+        <span class="upg-stat-label" style="color:${d.color}">${d.label}</span>
+        <span class="upg-stat-val"   style="color:${d.color}">+${upg[d.key] - 1}</span>
+      </div>`
+    ).join('');
+  }
+  const w = getWave();
+  if (w !== _uiWave) {
+    _uiWave = w;
+    _dom.waveVal.textContent = w;
+    if (w > lastWave) { lastWave = w; feed('⚠ WAVE ' + w + ' — Difficulty increased!'); }
+  }
+  if (life !== _uiLife) {
+    _uiLife = life;
+    for (let i = 0; i < 5; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
   }
 }
 
@@ -544,8 +657,8 @@ function continueFromAd() {
 
   // Clear active objects
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0;
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
+  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
 
   gameActive = true;
@@ -628,7 +741,7 @@ function restartGame() {
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
-  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0;
+  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
@@ -712,7 +825,6 @@ function loop(now) {
   const dt = Math.min(now - last, 50);
   last = now;
   const dtf = dt / 16.667; // normalized delta: 1.0 at 60fps
-  const zoom = isMobile ? Math.max(1.5, 700 / W) : 1;
   tickFPS(now);
 
   ctx.fillStyle = '#f5f6fa';
@@ -770,8 +882,23 @@ function loop(now) {
       e.x += e.vx * dtf; e.y += e.vy * dtf;
       e.bob += 0.03 * dtf;
       e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
+      const nearTree = sprouts.some(s => { if (!s.isTree) return false; const tx = e.x - s.x, ty = e.y - s.y; return tx * tx + ty * ty < (SPROUT_SHIELD_R + e.r) ** 2; });
       if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
-      else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
+      else { e.shootTimer += dt; if (!nearTree && e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
+      // Tree shield pushback
+      for (let si = 0; si < sprouts.length; si++) {
+        const s = sprouts[si];
+        if (!s.isTree) continue;
+        const tdx = e.x - s.x, tdy = e.y - s.y;
+        const tdist = Math.sqrt(tdx * tdx + tdy * tdy) || 1;
+        const minDist = SPROUT_SHIELD_R + e.r;
+        if (tdist < minDist) {
+          e.x = s.x + (tdx / tdist) * minDist;
+          e.y = s.y + (tdy / tdist) * minDist;
+          const dot = e.vx * (tdx / tdist) + e.vy * (tdy / tdist);
+          if (dot < 0) { e.vx -= dot * (tdx / tdist); e.vy -= dot * (tdy / tdist); }
+        }
+      }
     });
 
     // Minimee AI
@@ -879,6 +1006,19 @@ function loop(now) {
         }
       }
       if (miniHit) continue;
+      // Tree shield check
+      let treeBlocked = false;
+      for (let si = 0; si < sprouts.length; si++) {
+        const s = sprouts[si];
+        if (!s.isTree) continue;
+        const tdx = b.x - s.x, tdy = b.y - s.y;
+        if (tdx * tdx + tdy * tdy < SPROUT_SHIELD_R ** 2) {
+          eBullets.splice(i, 1);
+          explode(s.x + tdx * 0.5, s.y + tdy * 0.5, '#33ff77', 5);
+          treeBlocked = true; break;
+        }
+      }
+      if (treeBlocked) continue;
     }
 
     if (invincible > 0) invincible -= dtf;
@@ -895,7 +1035,13 @@ function loop(now) {
       if (p.flash > 0) p.flash -= dtf * 0.08;
       if (p.morphTimer >= 5000) {
         p.morphTimer = 0; p.flash = 1;
-        const next = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
+        const morphPool = [...PICKUP_DEFS];
+        const morphUpgDefs = PICKUP_DEFS.filter(d => upg.hasOwnProperty(d.type));
+        if (morphUpgDefs.length > 0) {
+          const morphLowest = morphUpgDefs.reduce((a, b) => upg[a.type] <= upg[b.type] ? a : b);
+          morphPool.push(morphLowest, morphLowest, morphLowest);
+        }
+        const next = morphPool[Math.floor(Math.random() * morphPool.length)];
         p.type = next.type; p.color = next.color; p.label = next.label; p.name = next.name;
       }
       const dx = p.x - cam.x, dy = p.y - cam.y;
@@ -934,7 +1080,7 @@ function loop(now) {
         } else if (p.type === 'minimee') {
           if (minimees.length < 3) {
             const offsetAngle = minimees.length * (Math.PI * 2 / 3);
-            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 10, maxHp: 10, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle });
+            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle });
             spawnFloat(p.x, p.y, 'MINIMEE!', p.color);
             feed('PICKUP! MINIMEE COMPANION (' + minimees.length + '/3)');
           } else {
@@ -973,6 +1119,42 @@ function loop(now) {
         }
         explode(p.x, p.y, p.color, 22);
         pickups.splice(i, 1);
+      }
+    }
+
+    // Sprout spawning
+    sproutTimer += dt;
+    if (sproutTimer >= SPROUT_INTERVAL) { sproutTimer = 0; spawnSprout(); }
+
+    // Sprout + tree update
+    for (let i = sprouts.length - 1; i >= 0; i--) {
+      const s = sprouts[i];
+      s.pulse += 0.05 * dtf;
+      if (s.isTree) {
+        s.treeTimer -= dtf;
+        if (s.treeTimer <= 0) {
+          explode(s.x, s.y, '#22aa44', 20);
+          spawnFloat(s.x, s.y, 'Tree gone', '#22aa44');
+          feed('TREE SHIELD EXPIRED');
+          sprouts.splice(i, 1);
+        }
+        continue;
+      }
+      if (s.touchCooldown > 0) s.touchCooldown -= dtf;
+      const sdx = s.x - cam.x, sdy = s.y - cam.y;
+      if (sdx * sdx + sdy * sdy < (s.r + 24) ** 2 && s.touchCooldown <= 0) {
+        s.level++;
+        s.touchCooldown = 60;
+        explode(s.x, s.y, '#33cc55', 8);
+        if (s.level >= 4) {
+          s.isTree = true;
+          s.treeTimer = 9.6 * 60;
+          spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
+          feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
+        } else {
+          spawnFloat(s.x, s.y, 'Sprout ' + s.level + '/4', '#33cc55');
+          feed('SPROUT GROWS ' + s.level + '/4 — touch again in 1s!');
+        }
       }
     }
 
@@ -1015,8 +1197,7 @@ function loop(now) {
     ctx.beginPath(); ctx.arc(sx, sy, sw.r, 0, Math.PI * 2);
     ctx.strokeStyle = '#ffdd00';
     ctx.lineWidth = 3 + sw.life * 6;
-    ctx.shadowColor = '#ffaa00';
-    ctx.shadowBlur = 20;
+    if (!lowSpec) { ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 20; }
     ctx.stroke();
     ctx.restore();
   });
@@ -1025,12 +1206,13 @@ function loop(now) {
     const { sx, sy } = wToS(p.x, p.y);
     ctx.save();
     ctx.globalAlpha = Math.max(0, p.life / 60);
-    ctx.fillStyle = p.col; ctx.shadowColor = p.col; ctx.shadowBlur = 8;
+    ctx.fillStyle = p.col;
     ctx.beginPath(); ctx.arc(sx, sy, p.r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   });
 
   pickups.forEach(p => drawPickup(p));
+  sprouts.forEach(s => drawSprout(s));
 
   floatTexts.forEach(ft => {
     const { sx, sy } = wToS(ft.x, ft.y);
@@ -1128,4 +1310,5 @@ function loop(now) {
   updateUI();
 }
 
+initDomCache();
 requestAnimationFrame(loop);
