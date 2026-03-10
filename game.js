@@ -200,7 +200,7 @@ function spawnPickup() {
 }
 
 function spawnSprout() {
-  if (sprouts.length >= 10) return;
+  if (sprouts.length >= 5) return;
   const a = Math.random() * Math.PI * 2;
   const d = 180 + Math.random() * 320;
   let sx = cam.x + Math.cos(a) * d;
