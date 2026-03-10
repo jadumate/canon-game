@@ -1,3 +1,10 @@
+## [2026-03-10] Sprout & Tree Limit (build 61)
+
+### Balance
+- Max combined sprouts + trees reduced 10 → 5
+
+---
+
 ## [2026-03-10] Sprout Totem, Performance & Balance (build 55 → 60)
 
 ### New World Object — Sprout / Tree Totem
