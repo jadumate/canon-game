@@ -44,6 +44,8 @@ function resize() {
 }
 resize();
 window.addEventListener('resize', resize);
+canvas.tabIndex = -1;
+canvas.focus();
 
 const cam = { x: 0, y: 0 };
 const ARENA_R = 2200;
@@ -84,6 +86,7 @@ window.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
 const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1 };
@@ -104,15 +107,17 @@ function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
   const pierceRate = (1 + (upg.pierce - 1) * 2) / 100;
   const arrowRate  = (1 + (upg.arrow  - 1) * 2) / 100;
+  // Spawn at cannon barrel tip (r=24, tip = 24*(0.38+0.95) ≈ 32) to avoid being hidden behind player body
+  const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
   if (Math.random() < pierceRate) {
-    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
   } else if (Math.random() < arrowRate && enemies.length > 0) {
     let nearestE = null, nearestD = Infinity;
     enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
     const aa = nearestE ? Math.atan2(nearestE.y - cam.y, nearestE.x - cam.x) : a;
-    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(aa) * s, vy: Math.sin(aa) * s, r: r * 1.2, life: 500, arrow: true });
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(aa) * s, vy: Math.sin(aa) * s, r: r * 1.2, life: 500, arrow: true });
   } else {
-    bullets.push({ x: cam.x, y: cam.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r, life: 200 });
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r, life: 200 });
   }
 }
 
@@ -927,7 +932,7 @@ function loop(now) {
         if (nearestE) {
           const a = Math.atan2(nearestE.y - m.y, nearestE.x - m.x);
           m.cannonAngle = a;
-          bullets.push({ x: m.x, y: m.y, vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 200 });
+          bullets.push({ x: m.x + Math.cos(a) * 24, y: m.y + Math.sin(a) * 24, vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 200 });
         }
       }
     });

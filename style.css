@@ -15,6 +15,7 @@ body {
 canvas {
   display: block;
   cursor: none;
+  outline: none;
 }
 
 /* ── HAMBURGER MENU ── */
