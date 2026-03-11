@@ -76,7 +76,7 @@ function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); 
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
 function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
-function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 3); }
+function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.5); }
 
 const keys = {};
 window.addEventListener('keydown', e => {
