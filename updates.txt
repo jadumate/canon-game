@@ -1,3 +1,23 @@
+## [2026-03-11] Balance & AegisTree Polish (build 62 → 69)
+
+### Balance — Enemy
+- Enemy fire rate ramp-up slowed: scaling factor `3 → 1.3` (reaches min interval much later)
+
+### Balance — Bullet Size (SIZ)
+- Per-level size multiplier reduced: `3 → 2` (−33% growth per level)
+- SIZ max level raised: `6 → 10`
+
+### AegisTree (formerly Sprout)
+- Grow steps to become a tree increased: `4 → 5` (touch 5 times)
+- Touch cooldown between grows doubled: `1s → 2s`
+- Float text renamed: `Sprout N/4` → `AegisTree N/5`
+- Max level stored as `SPROUT_MAX_LEVEL` constant (no more hardcoded `/5`)
+
+### Bug Fix
+- Float display was still showing `/4` after max-step change — corrected to use `SPROUT_MAX_LEVEL`
+
+---
+
 ## [2026-03-10] Sprout & Tree Limit (build 61)
 
 ### Balance

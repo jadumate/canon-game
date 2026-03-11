@@ -76,7 +76,7 @@ function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); 
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
 function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
-function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.5); }
+function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -92,7 +92,7 @@ window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clien
 const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1 };
 
 
-function getBR() { return 5 + (upg.size - 1) * 3; }
+function getBR() { return 5 + (upg.size - 1) * 2; }
 function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
@@ -101,6 +101,7 @@ const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], f
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
 const SPROUT_SHIELD_R = 115;   // tree bullet-block radius (world units)
+const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
@@ -177,7 +178,7 @@ const PICKUP_DEFS = [
   { type: 'minimee', color: '#1a3aaa', label: 'MIN', name: 'Minimee'  },
   { type: 'arrow',   color: '#00ddff', label: 'ARW', name: 'Homing'   },
 ];
-const UPG_MAX = { size: 6 }; // per-type overrides; default is 10
+const UPG_MAX = { size: 10 }; // per-type overrides; default is 10
 const PICKUP_R = 12;
 const PICKUP_INTERVAL = 14000;
 const MAX_PICKUPS = 7;
@@ -1149,16 +1150,16 @@ function loop(now) {
       const sdx = s.x - cam.x, sdy = s.y - cam.y;
       if (sdx * sdx + sdy * sdy < (s.r + 24) ** 2 && s.touchCooldown <= 0) {
         s.level++;
-        s.touchCooldown = 60;
+        s.touchCooldown = 120;
         explode(s.x, s.y, '#33cc55', 8);
-        if (s.level >= 4) {
+        if (s.level >= SPROUT_MAX_LEVEL) {
           s.isTree = true;
           s.treeTimer = 9.6 * 60;
           spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
           feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
         } else {
-          spawnFloat(s.x, s.y, 'Sprout ' + s.level + '/4', '#33cc55');
-          feed('SPROUT GROWS ' + s.level + '/4 — touch again in 1s!');
+          spawnFloat(s.x, s.y, 'AegisTree ' + s.level + '/' + SPROUT_MAX_LEVEL, '#33cc55');
+          feed('SPROUT GROWS ' + s.level + '/' + SPROUT_MAX_LEVEL + ' — touch again in 2s!');
         }
       }
     }
