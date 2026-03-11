@@ -1,3 +1,101 @@
+## [2026-03-11] Polish & Balance (build 73 → 82)
+
+### Bug Fix — Mobile Grid Alignment (build 80)
+- `drawGrid()` moved inside the zoom transform so the grid scrolls and scales in sync with all world objects on mobile
+
+### Balance — Ice Turret (build 81 → 82)
+- Turret is now **invincible** — enemy bullets pass through it
+- Lifetime reduced to 10s (was 30s); auto-disappears, no HP system
+- Fire rate: 1500ms → 700ms
+- Ice bullet speed: 9 → 14, range: 400 → 600
+- HP bar removed from draw; only a life bar shown
+
+### Balance — Mine AoE (build 78)
+- Mine explosion now destroys **all enemies within radius 200**, not just the trigger enemy
+- Kill count shown in feed: `MINE TRIGGERED! N ENEMIES DESTROYED`
+
+### UI — Kill Feed Repositioned (build 77)
+- Kill feed moved from top-right to **top-left** (below hamburger, `top: 68px, left: 18px`)
+- Left-aligned, subtle white background pill for readability
+
+### Balance — Continue-After-Ad Reset (build 76)
+- Upgrade penalty changed from `level - 1` → `floor(level × 2/3)` (min 1)
+- `spiceProductCount` also reduced by 2/3 on continue
+
+### Balance — Spice (build 75)
+- Spice pickup amount: `random(1–10)` → `random(1 ~ wave+10)` (scales with wave)
+- Product cost: starts at 50, +10% per placement (`getSpiceCost()`)
+- `/cost` cap in HUD updates live; fill bar relative to current cost
+
+### Product Selector (build 73–74)
+- `[M] [T] [I]` HUD buttons replace `[A] [B] [C]`
+- `1` key (and `E`) cycles products
+
+---
+
+## [2026-03-11] Spice Products B & C (build 72 → 73)
+
+### New Spice Product — Tar Trap [B]
+- Places a sticky tar puddle at player position (radius 48, ~15s duration)
+- Enemies inside move at 25% speed — does not kill, purely a slow
+- Drawn as a radial brown puddle with an animated ripple ring and "TAR" label
+- Fades as timer depletes
+
+### New Spice Product — Ice Turret [C]
+- Places a stationary icy cannon at player position (20s lifetime, 5 HP)
+- Fires ice bullets every 1.5s at the nearest unfrozen enemy
+- Ice bullet hits enemy → **FROZEN** for 5 seconds: can't move or fire
+- Frozen enemies show a blue ice-crystal overlay with a cyan freeze timer bar
+- "THAWED" float text when freeze expires
+- Enemy bullets can damage and destroy the turret (HP bar + life bar displayed)
+
+### Product Switching
+- `E` key cycles A → B → C → A
+- HUD selector buttons `[A] [B] [C]` appear under the spice bar — tap to switch (mobile-friendly)
+- Active product highlighted in amber
+
+---
+
+## [2026-03-11] Spice System (build 71 → 72)
+
+### New Feature — Spice
+- Gold diamond pickups appear randomly on the world map every 10s (max 6 at once), each worth 1–10 spice
+- Player collects spice by touching; accumulates up to 100 and beyond
+- Spice HUD bar displayed under the heart gauge (amber bar, Orbitron label, `/100` cap)
+
+### New Feature — Mine [spice_product_a]
+- When spice ≥ 100: one mine is auto-placed at the player's position and 100 spice is deducted (multiple mines if 200+, etc.)
+- Mine drawn as a dark metallic disc with orange X and red center dot, labeled "MINE"
+- Any enemy that touches a mine: dies instantly (full kill score), mine explodes with shockwave and disappears
+- Architecture: `spiceProductType = 'a'` variable ready for future product variants (b, c…)
+
+---
+
+## [2026-03-11] Homing Damage Cap (build 70 → 71)
+
+### Balance — Homing (ARW)
+- Homing bullet no longer one-shots enemies (`e.maxHp` damage removed)
+- Homing bullet damage capped at `getBD() × 2` — scales with player PWR level
+
+---
+
+## [2026-03-11] Minimee Nerf & Balance (build 69 → 70)
+
+### Balance — Minimee (MIN)
+- Minimee now expires 15 seconds after spawn (explodes with feed message "MINIMEE EXPIRED")
+- Minimee bullet speed halved vs. player (`getBS() / 2`)
+- Minimee fire rate halved vs. player (fire interval doubled: `getFI() * 2`)
+- Minimee damage halved vs. player (`getBD() / 2`, min 1)
+- Countdown timer displayed above Minimee HP bar; turns red in the last 3 seconds
+
+### Balance — AegisTree
+- Tree shield radius increased: 115 → 130
+
+### Balance — Bullet Size (SIZ)
+- Per-level size step reduced: `2 → 1.5` (max radius at LV10: ~18.5 vs. 23 before)
+
+---
+
 ## [2026-03-11] Balance & AegisTree Polish (build 62 → 69)
 
 ### Balance — Enemy

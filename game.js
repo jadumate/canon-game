@@ -50,6 +50,10 @@ canvas.focus();
 const cam = { x: 0, y: 0 };
 const ARENA_R = 2200;
 let score = 0, totalPoints = 0, life = 5, gameActive = true;
+let spice = 0;
+let spiceProductType = 'a'; // future: 'a','b','c'...
+let spiceProductCount = 0;
+function getSpiceCost() { return Math.floor(50 * Math.pow(1.1, spiceProductCount)); }
 let adUsed = false;
 let mouseX = 0, mouseY = 0;
 
@@ -78,11 +82,21 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
+const SPICE_PRODUCTS = { a: 'MINE', b: 'TAR TRAP', c: 'ICE TURRET' };
+function setSpiceProduct(p) {
+  spiceProductType = p;
+  feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
+}
+
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
     e.preventDefault();
+  }
+  if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
+    const order = ['a', 'b', 'c'];
+    setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -92,15 +106,23 @@ window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clien
 const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1 };
 
 
-function getBR() { return 5 + (upg.size - 1) * 2; }
+function getBR() { return 5 + (upg.size - 1) * 1.5; }
 function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [];
-let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0;
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], tars = [], iceTurrets = [];
+let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
-const SPROUT_SHIELD_R = 115;   // tree bullet-block radius (world units)
+const SPICE_INTERVAL = 10000;  // ms between spice spawns
+const MAX_SPICES = 6;
+const MINE_R = 16;
+const TAR_R = 48;
+const TAR_LIFE = 900;          // ~15s at 60fps baseline
+const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
+const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
+const MINIMEE_LIFETIME = 15000; // ms before minimee expires
+const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
 let playerMoveX = 0, playerMoveY = 0;
 
@@ -145,7 +167,8 @@ function spawnEnemy() {
     canonAngle: 0,
     bob: Math.random() * Math.PI * 2,
     color: `hsl(${hue},80%,50%)`,
-    hue
+    hue,
+    frozen: false, frozenTimer: 0
   });
 }
 
@@ -214,6 +237,120 @@ function spawnSprout() {
   const dist = Math.sqrt(sx * sx + sy * sy);
   if (dist > ARENA_R - 100) { sx *= (ARENA_R - 100) / dist; sy *= (ARENA_R - 100) / dist; }
   sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, treeTimer: 0, pulse: 0 });
+}
+
+function spawnSpice() {
+  if (spices.length >= MAX_SPICES) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 150 + Math.random() * 350;
+  let sx = cam.x + Math.cos(a) * d;
+  let sy = cam.y + Math.sin(a) * d;
+  const dist = Math.sqrt(sx * sx + sy * sy);
+  if (dist > ARENA_R - 80) { sx *= (ARENA_R - 80) / dist; sy *= (ARENA_R - 80) / dist; }
+  const amount = Math.floor(Math.random() * (getWave() + 10)) + 1;
+  spices.push({ x: sx, y: sy, r: 10, bob: Math.random() * Math.PI * 2, amount });
+}
+
+function drawSpice(s) {
+  const { sx, sy } = wToS(s.x, s.y + Math.sin(s.bob) * 4);
+  ctx.save();
+  if (!lowSpec) { ctx.shadowColor = '#d4a017'; ctx.shadowBlur = 10; }
+  ctx.fillStyle = '#e8b820';
+  ctx.strokeStyle = '#c49010';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - s.r * 1.3);
+  ctx.lineTo(sx + s.r, sy);
+  ctx.lineTo(sx, sy + s.r * 1.3);
+  ctx.lineTo(sx - s.r, sy);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.font = 'bold 8px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#5a3a00';
+  ctx.fillText(s.amount, sx, sy);
+  ctx.restore();
+}
+
+function drawTar(t) {
+  const { sx, sy } = wToS(t.x, t.y);
+  const lifeFrac = t.life / TAR_LIFE;
+  ctx.save();
+  ctx.globalAlpha = 0.6 * lifeFrac;
+  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
+  g.addColorStop(0, '#3d2e08');
+  g.addColorStop(0.65, '#5a420e');
+  g.addColorStop(1, 'rgba(70,50,8,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(sx, sy, t.r, t.r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
+  // Ripple ring
+  ctx.globalAlpha = 0.35 * lifeFrac;
+  ctx.strokeStyle = '#9a7a28'; ctx.lineWidth = 1.5;
+  const ripR = t.r * (0.45 + Math.sin(t.pulse) * 0.12);
+  ctx.beginPath(); ctx.ellipse(sx, sy, ripR, ripR * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.75 * lifeFrac;
+  ctx.font = 'bold 7px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#d4a030';
+  ctx.fillText('TAR', sx, sy);
+  ctx.restore();
+}
+
+function drawIceTurret(t) {
+  const { sx, sy } = wToS(t.x, t.y);
+  ctx.save();
+  if (!lowSpec) { ctx.shadowColor = '#00aaff'; ctx.shadowBlur = 12; }
+  // Base
+  ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a4a6a'; ctx.fill();
+  ctx.strokeStyle = '#44aaff'; ctx.lineWidth = 2.5; ctx.stroke();
+  // Inner ring
+  ctx.beginPath(); ctx.arc(sx, sy, t.r * 0.58, 0, Math.PI * 2);
+  ctx.fillStyle = '#2266aa'; ctx.fill();
+  // Barrel
+  ctx.save();
+  ctx.translate(sx, sy); ctx.rotate(t.angle);
+  if (!lowSpec) { ctx.shadowColor = '#88ddff'; ctx.shadowBlur = 6; }
+  ctx.fillStyle = '#88ccff';
+  ctx.beginPath(); ctx.roundRect(t.r * 0.3, -4, t.r * 0.95, 8, 2); ctx.fill();
+  ctx.restore();
+  ctx.shadowBlur = 0;
+  // Life bar
+  const lifeFrac = t.life / ICE_TURRET_LIFE;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.fillRect(sx - 22, sy - t.r - 8, 44, 4);
+  ctx.fillStyle = `hsl(${200 * lifeFrac},80%,60%)`;
+  ctx.fillRect(sx - 22, sy - t.r - 8, 44 * lifeFrac, 4);
+  // Label
+  ctx.font = 'bold 7px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#aaddff';
+  ctx.fillText('ICE', sx, sy + t.r + 3);
+  ctx.restore();
+}
+
+function drawMine(m) {
+  const { sx, sy } = wToS(m.x, m.y);
+  ctx.save();
+  if (!lowSpec) { ctx.shadowColor = '#ff4400'; ctx.shadowBlur = 10; }
+  ctx.beginPath(); ctx.arc(sx, sy, m.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#2a2a2a'; ctx.fill();
+  ctx.strokeStyle = '#ff4400'; ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.strokeStyle = '#ff6600'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(sx - m.r * 0.6, sy - m.r * 0.6); ctx.lineTo(sx + m.r * 0.6, sy + m.r * 0.6);
+  ctx.moveTo(sx + m.r * 0.6, sy - m.r * 0.6); ctx.lineTo(sx - m.r * 0.6, sy + m.r * 0.6);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#ff2200'; ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.font = 'bold 7px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffaa00';
+  ctx.fillText('MINE', sx, sy + m.r + 3);
+  ctx.restore();
 }
 
 function drawSprout(s) {
@@ -549,12 +686,18 @@ const UPG_STATS = [
 
 // ── DOM cache ──
 const _dom = {};
-let _uiScore = -1, _uiUpgHash = '', _uiWave = -1, _uiLife = -1;
+let _uiScore = -1, _uiUpgHash = '', _uiWave = -1, _uiLife = -1, _uiSpice = -1, _uiSpiceCost = -1, _uiProduct = '';
 function initDomCache() {
   _dom.scoreVal  = document.getElementById('score-val');
   _dom.upgStatus = document.getElementById('upg-status');
   _dom.waveVal   = document.getElementById('wave-val');
   _dom.hearts    = Array.from({ length: 5 }, (_, i) => document.getElementById('h' + i));
+  _dom.spiceVal  = document.getElementById('spice-val');
+  _dom.spiceFill = document.getElementById('spice-fill');
+  _dom.spiceCap  = document.getElementById('spice-cap');
+  _dom.sprodA    = document.getElementById('sprod-a');
+  _dom.sprodB    = document.getElementById('sprod-b');
+  _dom.sprodC    = document.getElementById('sprod-c');
 }
 
 function updateUI() {
@@ -581,6 +724,19 @@ function updateUI() {
   if (life !== _uiLife) {
     _uiLife = life;
     for (let i = 0; i < 5; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
+  }
+  const cost = getSpiceCost();
+  if (spice !== _uiSpice || cost !== _uiSpiceCost) {
+    _uiSpice = spice; _uiSpiceCost = cost;
+    _dom.spiceVal.textContent = spice;
+    _dom.spiceCap.textContent = '/' + cost;
+    _dom.spiceFill.style.width = Math.min(100, (spice / cost) * 100) + '%';
+  }
+  if (spiceProductType !== _uiProduct) {
+    _uiProduct = spiceProductType;
+    _dom.sprodA.classList.toggle('active', spiceProductType === 'a');
+    _dom.sprodB.classList.toggle('active', spiceProductType === 'b');
+    _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
   }
 }
 
@@ -645,10 +801,11 @@ function continueFromAd() {
   if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
   adUsed = true;
 
-  // Reduce all upgrade levels by 1 (min 1)
+  // Reduce all upgrade levels and spice product count by 2/3
   for (const k of Object.keys(upg)) {
-    upg[k] = Math.max(1, upg[k] - 1);
+    upg[k] = Math.max(1, Math.floor(upg[k] * 2 / 3));
   }
+  spiceProductCount = Math.floor(spiceProductCount * 2 / 3);
 
   // Halve elapsed time → halves wave
   elapsedSec = Math.floor(elapsedSec / 2);
@@ -664,6 +821,8 @@ function continueFromAd() {
   // Clear active objects
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
+  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; spiceTimer = 0;
+  spice = 0; spiceProductCount = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
 
@@ -743,11 +902,13 @@ function escHtml(s) {
 
 function restartGame() {
   score = 0; totalPoints = 0; life = 5; gameActive = true;
+  spice = 0; spiceProductCount = 0;
   adUsed = false;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
   pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
+  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
@@ -835,7 +996,6 @@ function loop(now) {
 
   ctx.fillStyle = '#f5f6fa';
   ctx.fillRect(0, 0, W, H);
-  drawGrid();
 
   if (gameActive) {
     elapsedSec += dt / 1000;
@@ -880,7 +1040,27 @@ function loop(now) {
     enemies.forEach(e => {
       e.aliveTime += dt;
       if (!e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
-      const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
+      // Frozen: skip movement and shooting
+      if (e.frozen) {
+        e.frozenTimer -= dtf;
+        e.bob += 0.008 * dtf;
+        e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
+        if (e.frozenTimer <= 0) {
+          const bonus = 100 * getWave();
+          explode(e.x, e.y, '#88ddff', 30);
+          score += bonus; totalPoints += bonus;
+          feed('FROZEN SOLID! +' + bonus);
+          enemies.splice(enemies.indexOf(e), 1);
+        }
+        return;
+      }
+      // Tar slow
+      let tarMul = 1;
+      for (const tr of tars) {
+        const tdx = e.x - tr.x, tdy = e.y - tr.y;
+        if (tdx * tdx + tdy * tdy < tr.r * tr.r) { tarMul = 0.25; break; }
+      }
+      const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul * tarMul;
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
       if (d > 85) { e.vx += (dx / d) * espd * spdMul * dtf; e.vy += (dy / d) * espd * spdMul * dtf; }
@@ -909,7 +1089,15 @@ function loop(now) {
 
     // Minimee AI
     const miniMaxSpd = (3.2 + (upg.move - 1) * 0.8) * 0.8;
-    minimees.forEach(m => {
+    for (let mi = minimees.length - 1; mi >= 0; mi--) {
+      const m = minimees[mi];
+      // Expire after 15 seconds
+      if (performance.now() - m.spawnTime >= MINIMEE_LIFETIME) {
+        explode(m.x, m.y, '#1a3aaa', 20);
+        feed('MINIMEE EXPIRED');
+        minimees.splice(mi, 1);
+        continue;
+      }
       m.bob += 0.03 * dtf;
       if (m.invincible > 0) m.invincible -= dtf;
       // Orbit around player at 70 world units
@@ -924,19 +1112,22 @@ function loop(now) {
       const spd2 = Math.sqrt(m.vx * m.vx + m.vy * m.vy);
       if (spd2 > miniMaxSpd) { m.vx *= miniMaxSpd / spd2; m.vy *= miniMaxSpd / spd2; }
       m.x += m.vx * dtf; m.y += m.vy * dtf;
-      // Shoot at nearest enemy
+      // Shoot at nearest enemy (halved speed, damage, doubled interval vs player)
+      const miniFI = getFI() * 2;
+      const miniBS = getBS() / 2;
+      const miniDmg = Math.max(1, getBD() / 2);
       m.shootTimer += dt;
-      if (m.shootTimer >= getFI() && enemies.length > 0) {
+      if (m.shootTimer >= miniFI && enemies.length > 0) {
         m.shootTimer = 0;
         let nearestE = null, nearestD = Infinity;
         enemies.forEach(e => { const d2 = (e.x - m.x) ** 2 + (e.y - m.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
         if (nearestE) {
           const a = Math.atan2(nearestE.y - m.y, nearestE.x - m.x);
           m.cannonAngle = a;
-          bullets.push({ x: m.x + Math.cos(a) * 24, y: m.y + Math.sin(a) * 24, vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 200 });
+          bullets.push({ x: m.x + Math.cos(a) * 24, y: m.y + Math.sin(a) * 24, vx: Math.cos(a) * miniBS, vy: Math.sin(a) * miniBS, r: getBR(), life: 200, miniDmg });
         }
       }
-    });
+    }
 
     // Player bullet collisions
     for (let i = bullets.length - 1; i >= 0; i--) {
@@ -965,7 +1156,8 @@ function loop(now) {
         const dx = b.x - e.x, dy = b.y - e.y;
         if (dx * dx + dy * dy < (b.r + e.r) ** 2) {
           if (b.pierce) b.hit.add(e);
-          e.hp -= b.arrow ? e.maxHp : getBD();
+          e.hp -= b.miniDmg !== undefined ? b.miniDmg : b.iceDmg !== undefined ? b.iceDmg : (b.arrow ? getBD() * 2 : getBD());
+          if (b.ice && !e.frozen) { e.frozen = true; e.frozenTimer = ICE_FREEZE_TIME; spawnFloat(e.x, e.y, 'FROZEN!', '#88ddff'); }
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
@@ -1086,7 +1278,7 @@ function loop(now) {
         } else if (p.type === 'minimee') {
           if (minimees.length < 3) {
             const offsetAngle = minimees.length * (Math.PI * 2 / 3);
-            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle });
+            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle, spawnTime: performance.now() });
             spawnFloat(p.x, p.y, 'MINIMEE!', p.color);
             feed('PICKUP! MINIMEE COMPANION (' + minimees.length + '/3)');
           } else {
@@ -1125,6 +1317,115 @@ function loop(now) {
         }
         explode(p.x, p.y, p.color, 22);
         pickups.splice(i, 1);
+      }
+    }
+
+    // Spice spawning
+    spiceTimer += dt;
+    if (spiceTimer >= SPICE_INTERVAL) { spiceTimer = 0; spawnSpice(); }
+
+    // Spice collection
+    for (let i = spices.length - 1; i >= 0; i--) {
+      const s = spices[i];
+      s.bob += 0.04 * dtf;
+      const dx = s.x - cam.x, dy = s.y - cam.y;
+      if (dx * dx + dy * dy < (s.r + 24) ** 2) {
+        spice += s.amount;
+        explode(s.x, s.y, '#e8b820', 14);
+        spawnFloat(s.x, s.y, '+' + s.amount + ' SPICE', '#d4a017');
+        feed('SPICE ×' + s.amount + ' — Total: ' + spice);
+        spices.splice(i, 1);
+        // Auto-drop product when spice >= cost
+        while (spice >= getSpiceCost()) {
+          spice -= getSpiceCost();
+          spiceProductCount++;
+          const nextCost = getSpiceCost();
+          if (spiceProductType === 'a') {
+            mines.push({ x: cam.x, y: cam.y, r: MINE_R, type: 'a', pulse: 0 });
+            spawnFloat(cam.x, cam.y, 'MINE PLACED', '#ff6600');
+            feed('MINE [M] PLACED — next cost: ' + nextCost);
+          } else if (spiceProductType === 'b') {
+            tars.push({ x: cam.x, y: cam.y, r: TAR_R, life: TAR_LIFE, pulse: 0 });
+            spawnFloat(cam.x, cam.y, 'TAR PLACED', '#8a6a1a');
+            feed('TAR TRAP [T] PLACED — next cost: ' + nextCost);
+          } else if (spiceProductType === 'c') {
+            iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
+            spawnFloat(cam.x, cam.y, 'ICE TURRET!', '#88ddff');
+            feed('ICE TURRET [I] PLACED — next cost: ' + nextCost);
+          }
+        }
+      }
+    }
+
+    // Mine — enemy collision
+    for (let mi = mines.length - 1; mi >= 0; mi--) {
+      const m = mines[mi];
+      m.pulse += 0.08 * dtf;
+      let triggered = false;
+      for (let ei = enemies.length - 1; ei >= 0; ei--) {
+        const e = enemies[ei];
+        const dx = e.x - m.x, dy = e.y - m.y;
+        if (dx * dx + dy * dy < (m.r + e.r) ** 2) {
+          // Trigger: destroy all enemies within blast radius
+          const BLAST_R = 200;
+          explode(m.x, m.y, '#ff4400', 50);
+          shockwaves.push({ x: m.x, y: m.y, r: 0, maxR: BLAST_R, life: 1.0 });
+          let killed = 0;
+          for (let bi = enemies.length - 1; bi >= 0; bi--) {
+            const be = enemies[bi];
+            const bdx = be.x - m.x, bdy = be.y - m.y;
+            if (bdx * bdx + bdy * bdy < BLAST_R * BLAST_R) {
+              explode(be.x, be.y, be.color, 25);
+              score += 100 * getWave(); totalPoints += 100 * getWave();
+              enemies.splice(bi, 1);
+              killed++;
+            }
+          }
+          mines.splice(mi, 1);
+          feed('MINE TRIGGERED! ' + killed + ' ENEMIES DESTROYED');
+          triggered = true;
+          break;
+        }
+      }
+      if (triggered) continue;
+    }
+
+    // Tar trap update
+    for (let ti = tars.length - 1; ti >= 0; ti--) {
+      const t = tars[ti];
+      t.life -= dtf;
+      t.pulse += 0.04 * dtf;
+      if (t.life <= 0) {
+        spawnFloat(t.x, t.y, 'TAR GONE', '#8a6a1a');
+        tars.splice(ti, 1);
+      }
+    }
+
+    // Ice turret AI
+    for (let ti = iceTurrets.length - 1; ti >= 0; ti--) {
+      const t = iceTurrets[ti];
+      t.life -= dtf;
+      if (t.life <= 0) {
+        explode(t.x, t.y, '#88ddff', 20);
+        spawnFloat(t.x, t.y, 'TURRET GONE', '#88ddff');
+        feed('ICE TURRET EXPIRED');
+        iceTurrets.splice(ti, 1);
+        continue;
+      }
+      t.shootTimer += dt;
+      if (t.shootTimer >= 700 && enemies.length > 0) {
+        t.shootTimer = 0;
+        let nearestE = null, nearestD = Infinity;
+        enemies.forEach(e => {
+          if (e.frozen) return;
+          const d2 = (e.x - t.x) ** 2 + (e.y - t.y) ** 2;
+          if (d2 < nearestD) { nearestD = d2; nearestE = e; }
+        });
+        if (nearestE) {
+          const a = Math.atan2(nearestE.y - t.y, nearestE.x - t.x);
+          t.angle = a;
+          bullets.push({ x: t.x + Math.cos(a) * 24, y: t.y + Math.sin(a) * 24, vx: Math.cos(a) * 14, vy: Math.sin(a) * 14, r: 8, life: 600, ice: true, iceDmg: 0 });
+        }
       }
     }
 
@@ -1196,6 +1497,8 @@ function loop(now) {
   ctx.scale(zoom, zoom);
   ctx.translate(-W / 2, -H / 2);
 
+  drawGrid();
+
   shockwaves.forEach(sw => {
     const { sx, sy } = wToS(sw.x, sw.y);
     ctx.save();
@@ -1217,7 +1520,11 @@ function loop(now) {
     ctx.restore();
   });
 
+  tars.forEach(t => drawTar(t));
   pickups.forEach(p => drawPickup(p));
+  spices.forEach(s => drawSpice(s));
+  mines.forEach(m => drawMine(m));
+  iceTurrets.forEach(t => drawIceTurret(t));
   sprouts.forEach(s => drawSprout(s));
 
   floatTexts.forEach(ft => {
@@ -1243,6 +1550,7 @@ function loop(now) {
     ctx.globalAlpha = (b.pierce || b.arrow) ? 1 : Math.min(1, b.life / 20);
     if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
+    else if (b.ice) drawBullet(sx, sy, b.r, '#aaeeff', '#0066aa');
     else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
     ctx.restore();
   });
@@ -1272,6 +1580,30 @@ function loop(now) {
       ctx.restore();
     }
     drawChar(sx, sy, e.canonAngle, false, e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
+    // Frozen overlay
+    if (e.frozen) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      if (!lowSpec) { ctx.shadowColor = '#00aaff'; ctx.shadowBlur = 10; }
+      ctx.fillStyle = '#88ddff';
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.12, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.85;
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+      for (let ci = 0; ci < 6; ci++) {
+        const ca = ci * Math.PI / 3;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(ca) * e.r * 1.35, sy + Math.sin(ca) * e.r * 1.35);
+        ctx.stroke();
+      }
+      // Freeze timer bar
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(sx - 24, sy - 46, 48, 4);
+      ctx.fillStyle = '#44ddff';
+      ctx.fillRect(sx - 24, sy - 46, 48 * (e.frozenTimer / ICE_FREEZE_TIME), 4);
+      ctx.restore();
+    }
     ctx.save();
     ctx.fillStyle = 'rgba(200,210,230,0.8)';
     ctx.fillRect(sx - 24, sy - 38, 48, 6);
@@ -1295,6 +1627,12 @@ function loop(now) {
     ctx.fillRect(sx - 20, sy - 30, 40 * (m.hp / m.maxHp), 5);
     ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
     ctx.strokeRect(sx - 20, sy - 30, 40, 5);
+    // Countdown timer
+    const secLeft = Math.ceil((MINIMEE_LIFETIME - (performance.now() - m.spawnTime)) / 1000);
+    ctx.font = 'bold 9px Orbitron, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = secLeft <= 3 ? '#ff4444' : 'rgba(255,255,255,0.7)';
+    ctx.fillText(secLeft + 's', sx, sy - 35);
     ctx.restore();
   });
 
