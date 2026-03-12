@@ -225,9 +225,11 @@ canvas {
 #spice-product-row {
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   gap: 4px;
   justify-content: flex-end;
   margin-top: 3px;
+  max-width: 160px;
 }
 
 .sprod {
