@@ -82,7 +82,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'TAR TRAP', c: 'ICE TURRET' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'TAR TRAP', c: 'ICE TURRET', d: 'BLIND TRAP', e: 'CONFUSE TRAP' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -95,7 +95,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
   }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
-    const order = ['a', 'b', 'c'];
+    const order = ['a', 'b', 'c', 'd', 'e'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
@@ -111,7 +111,7 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], tars = [], iceTurrets = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], tars = [], iceTurrets = [], blindTraps = [], confuseTraps = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
 const SPICE_INTERVAL = 10000;  // ms between spice spawns
@@ -121,6 +121,12 @@ const TAR_R = 48;
 const TAR_LIFE = 900;          // ~15s at 60fps baseline
 const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
+const BLIND_TRAP_R = 44;
+const BLIND_TRAP_LIFE = 600;   // ~10s at 60fps baseline
+const BLIND_TIME = 600;        // ~10s enemy blinded
+const CONFUSE_TRAP_R = 44;
+const CONFUSE_TRAP_LIFE = 600; // ~10s at 60fps baseline
+const CONFUSE_TIME = 600;      // ~10s enemy confused
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
@@ -168,7 +174,9 @@ function spawnEnemy() {
     bob: Math.random() * Math.PI * 2,
     color: `hsl(${hue},80%,50%)`,
     hue,
-    frozen: false, frozenTimer: 0
+    frozen: false, frozenTimer: 0,
+    blinded: false, blindTimer: 0,
+    confused: false, confusedTimer: 0
   });
 }
 
@@ -184,6 +192,19 @@ function enemyFire(e) {
     vy: Math.sin(a) * spd,
     r: br, life: 240, awakened: e.awakened
   });
+  e.canonAngle = a;
+}
+
+function confusedFire(e) {
+  let target = null, bestD = Infinity;
+  enemies.forEach(t => {
+    if (t === e) return;
+    const d2 = (t.x - e.x) ** 2 + (t.y - e.y) ** 2;
+    if (d2 < bestD) { bestD = d2; target = t; }
+  });
+  if (!target) return;
+  const a = Math.atan2(target.y - e.y, target.x - e.x);
+  bullets.push({ x: e.x + Math.cos(a) * (e.r + 8), y: e.y + Math.sin(a) * (e.r + 8), vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 400, confuseFire: true });
   e.canonAngle = a;
 }
 
@@ -294,6 +315,62 @@ function drawTar(t) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#d4a030';
   ctx.fillText('TAR', sx, sy);
+  ctx.restore();
+}
+
+function drawBlindTrap(t) {
+  const { sx, sy } = wToS(t.x, t.y);
+  const lifeFrac = t.life / BLIND_TRAP_LIFE;
+  ctx.save();
+  ctx.globalAlpha = 0.65 * lifeFrac;
+  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
+  g.addColorStop(0, '#ff9900'); g.addColorStop(0.6, '#cc5500'); g.addColorStop(1, 'rgba(180,60,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2); ctx.fill();
+  // Jagged teeth ring
+  ctx.globalAlpha = 0.85 * lifeFrac;
+  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  const N = 8;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2 + t.pulse;
+    const r = i % 2 === 0 ? t.r * 0.85 : t.r * 0.52;
+    i === 0 ? ctx.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r)
+            : ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.font = 'bold 7px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffdd99'; ctx.globalAlpha = 0.9 * lifeFrac;
+  ctx.fillText('BLD', sx, sy);
+  ctx.restore();
+}
+
+function drawConfuseTrap(t) {
+  const { sx, sy } = wToS(t.x, t.y);
+  const lifeFrac = t.life / CONFUSE_TRAP_LIFE;
+  ctx.save();
+  ctx.globalAlpha = 0.65 * lifeFrac;
+  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
+  g.addColorStop(0, '#ff3300'); g.addColorStop(0.6, '#aa1100'); g.addColorStop(1, 'rgba(150,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2); ctx.fill();
+  // Jagged teeth ring (reverse spin)
+  ctx.globalAlpha = 0.85 * lifeFrac;
+  ctx.strokeStyle = '#ff5533'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  const N = 8;
+  for (let i = 0; i <= N; i++) {
+    const a = (i / N) * Math.PI * 2 - t.pulse;
+    const r = i % 2 === 0 ? t.r * 0.85 : t.r * 0.52;
+    i === 0 ? ctx.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r)
+            : ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.font = 'bold 7px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffaaaa'; ctx.globalAlpha = 0.9 * lifeFrac;
+  ctx.fillText('CNF', sx, sy);
   ctx.restore();
 }
 
@@ -698,6 +775,8 @@ function initDomCache() {
   _dom.sprodA    = document.getElementById('sprod-a');
   _dom.sprodB    = document.getElementById('sprod-b');
   _dom.sprodC    = document.getElementById('sprod-c');
+  _dom.sprodD    = document.getElementById('sprod-d');
+  _dom.sprodE    = document.getElementById('sprod-e');
 }
 
 function updateUI() {
@@ -737,6 +816,8 @@ function updateUI() {
     _dom.sprodA.classList.toggle('active', spiceProductType === 'a');
     _dom.sprodB.classList.toggle('active', spiceProductType === 'b');
     _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
+    _dom.sprodD.classList.toggle('active', spiceProductType === 'd');
+    _dom.sprodE.classList.toggle('active', spiceProductType === 'e');
   }
 }
 
@@ -821,7 +902,7 @@ function continueFromAd() {
   // Clear active objects
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
-  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; blindTraps.length = 0; confuseTraps.length = 0; spiceTimer = 0;
   spice = 0; spiceProductCount = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
@@ -908,7 +989,7 @@ function restartGame() {
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
   pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
-  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; blindTraps.length = 0; confuseTraps.length = 0; spiceTimer = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
@@ -1054,6 +1135,37 @@ function loop(now) {
         }
         return;
       }
+      // Blinded: lock velocity, no firing
+      if (e.blinded) {
+        e.blindTimer -= dtf;
+        e.bob += 0.03 * dtf;
+        e.vx *= Math.pow(0.96, dtf); e.vy *= Math.pow(0.96, dtf);
+        e.x += e.vx * dtf; e.y += e.vy * dtf;
+        e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
+        if (e.blindTimer <= 0) { e.blinded = false; spawnFloat(e.x, e.y, 'SIGHT BACK!', '#ff8800'); }
+        return;
+      }
+      // Blind trap detection
+      for (const bt of blindTraps) {
+        const bdx = e.x - bt.x, bdy = e.y - bt.y;
+        if (bdx * bdx + bdy * bdy < bt.r * bt.r && !e.blinded) {
+          e.blinded = true; e.blindTimer = BLIND_TIME;
+          spawnFloat(e.x, e.y, 'BLINDED!', '#ff8800');
+        }
+      }
+      // Confuse trap detection
+      for (const ct of confuseTraps) {
+        const cdx = e.x - ct.x, cdy = e.y - ct.y;
+        if (cdx * cdx + cdy * cdy < ct.r * ct.r && !e.confused) {
+          e.confused = true; e.confusedTimer = CONFUSE_TIME;
+          spawnFloat(e.x, e.y, 'CONFUSED!', '#ff2200');
+        }
+      }
+      // Confused timer
+      if (e.confused) {
+        e.confusedTimer -= dtf;
+        if (e.confusedTimer <= 0) { e.confused = false; spawnFloat(e.x, e.y, 'SNAPPED OUT!', '#ff6644'); }
+      }
       // Tar slow
       let tarMul = 1;
       for (const tr of tars) {
@@ -1070,7 +1182,7 @@ function loop(now) {
       e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
       const nearTree = sprouts.some(s => { if (!s.isTree) return false; const tx = e.x - s.x, ty = e.y - s.y; return tx * tx + ty * ty < (SPROUT_SHIELD_R + e.r) ** 2; });
       if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
-      else { e.shootTimer += dt; if (!nearTree && e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
+      else { e.shootTimer += dt; if (!nearTree && e.shootTimer >= e.shootInterval) { e.shootTimer = 0; if (e.confused) confusedFire(e); else enemyFire(e); } }
       // Tree shield pushback
       for (let si = 0; si < sprouts.length; si++) {
         const s = sprouts[si];
@@ -1352,6 +1464,14 @@ function loop(now) {
             iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
             spawnFloat(cam.x, cam.y, 'ICE TURRET!', '#88ddff');
             feed('ICE TURRET [I] PLACED — next cost: ' + nextCost);
+          } else if (spiceProductType === 'd') {
+            blindTraps.push({ x: cam.x, y: cam.y, r: BLIND_TRAP_R, life: BLIND_TRAP_LIFE, pulse: 0 });
+            spawnFloat(cam.x, cam.y, 'BLIND TRAP!', '#ff8800');
+            feed('BLIND TRAP [B] PLACED — next cost: ' + nextCost);
+          } else if (spiceProductType === 'e') {
+            confuseTraps.push({ x: cam.x, y: cam.y, r: CONFUSE_TRAP_R, life: CONFUSE_TRAP_LIFE, pulse: 0 });
+            spawnFloat(cam.x, cam.y, 'CONFUSE TRAP!', '#ff2200');
+            feed('CONFUSE TRAP [C] PLACED — next cost: ' + nextCost);
           }
         }
       }
@@ -1398,6 +1518,28 @@ function loop(now) {
       if (t.life <= 0) {
         spawnFloat(t.x, t.y, 'TAR GONE', '#8a6a1a');
         tars.splice(ti, 1);
+      }
+    }
+
+    // Blind trap update
+    for (let ti = blindTraps.length - 1; ti >= 0; ti--) {
+      const t = blindTraps[ti];
+      t.life -= dtf;
+      t.pulse += 0.04 * dtf;
+      if (t.life <= 0) {
+        spawnFloat(t.x, t.y, 'BLIND GONE', '#ff8800');
+        blindTraps.splice(ti, 1);
+      }
+    }
+
+    // Confuse trap update
+    for (let ti = confuseTraps.length - 1; ti >= 0; ti--) {
+      const t = confuseTraps[ti];
+      t.life -= dtf;
+      t.pulse += 0.04 * dtf;
+      if (t.life <= 0) {
+        spawnFloat(t.x, t.y, 'CONFUSE GONE', '#ff2200');
+        confuseTraps.splice(ti, 1);
       }
     }
 
@@ -1521,6 +1663,8 @@ function loop(now) {
   });
 
   tars.forEach(t => drawTar(t));
+  blindTraps.forEach(t => drawBlindTrap(t));
+  confuseTraps.forEach(t => drawConfuseTrap(t));
   pickups.forEach(p => drawPickup(p));
   spices.forEach(s => drawSpice(s));
   mines.forEach(m => drawMine(m));
@@ -1602,6 +1746,48 @@ function loop(now) {
       ctx.fillRect(sx - 24, sy - 46, 48, 4);
       ctx.fillStyle = '#44ddff';
       ctx.fillRect(sx - 24, sy - 46, 48 * (e.frozenTimer / ICE_FREEZE_TIME), 4);
+      ctx.restore();
+    }
+    // Blinded overlay
+    if (e.blinded) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#ff8800';
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.1, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#ffcc44'; ctx.lineWidth = 2.5;
+      // X eyes
+      ctx.beginPath();
+      ctx.moveTo(sx - 9, sy - 4); ctx.lineTo(sx - 4, sy + 1);
+      ctx.moveTo(sx - 4, sy - 4); ctx.lineTo(sx - 9, sy + 1);
+      ctx.moveTo(sx + 4, sy - 4); ctx.lineTo(sx + 9, sy + 1);
+      ctx.moveTo(sx + 9, sy - 4); ctx.lineTo(sx + 4, sy + 1);
+      ctx.stroke();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(sx - 24, sy - 54, 48, 4);
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(sx - 24, sy - 54, 48 * (e.blindTimer / BLIND_TIME), 4);
+      ctx.restore();
+    }
+    // Confused overlay
+    if (e.confused) {
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = '#ff2200';
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.1, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#ff8866'; ctx.lineWidth = 2;
+      // ? swirl
+      ctx.beginPath(); ctx.arc(sx, sy - 5, 7, -Math.PI * 0.9, Math.PI * 0.5); ctx.stroke();
+      ctx.beginPath(); ctx.arc(sx, sy + 3, 3, 0, Math.PI * 1.5); ctx.stroke();
+      ctx.fillStyle = '#ff8866';
+      ctx.beginPath(); ctx.arc(sx, sy + 8, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(sx - 24, sy - 54, 48, 4);
+      ctx.fillStyle = '#ff5533';
+      ctx.fillRect(sx - 24, sy - 54, 48 * (e.confusedTimer / CONFUSE_TIME), 4);
       ctx.restore();
     }
     ctx.save();

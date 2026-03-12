@@ -1,3 +1,23 @@
+## [2026-03-12] New Spice Products — Blind Trap & Confuse Trap (build 84)
+
+### New Spice Product — Blind Trap [B]
+- Places an orange jagged-ring trap at player position (radius 44, ~10s duration)
+- Enemies that enter the radius are **blinded** for 10s: their velocity locks in the current direction (no steering toward player) and they **cannot fire**
+- Blinded overlay: orange tint with ✕✕ eyes and an orange countdown bar above the HP bar
+- "SIGHT BACK!" float text when the effect expires
+
+### New Spice Product — Confuse Trap [C]
+- Places a red jagged-ring trap at player position (radius 44, ~10s duration)
+- Enemies that enter the radius are **confused** for 10s: they move normally but **fire player-type bullets toward the nearest other enemy** (friendly fire) instead of the player
+- Confused overlay: red tint with `?` swirl symbol and a red countdown bar
+- "SNAPPED OUT!" float text when the effect expires
+
+### Product Selector
+- HUD row now shows `[M] [T] [I] [B] [C]` — two new buttons added
+- `1` / `E` cycle now covers all five products
+
+---
+
 ## [2026-03-11] Polish & Balance (build 73 → 82)
 
 ### Bug Fix — Mobile Grid Alignment (build 80)
