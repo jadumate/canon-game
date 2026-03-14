@@ -1,3 +1,48 @@
+## [2026-03-14] Boss Scaling, Miasma Tree & Minimee Spice Product (builds 87–89)
+
+### Boss — Burst Bullet Scaling (build 89)
+- Boss bullet count per burst now scales with wave: W5→3, W10→4, W15→5, W20→6, …
+- Formula: `Math.floor(wave/5) + 2`
+- Bullets remain evenly spread (18° gap each) centered on the player
+
+### New Tree Type — Miasma Tree (build 88)
+- Each sprout now randomly spawns as either **Aegis** (green) or **Miasma** (violet) kind — color hints at type while growing
+- Touch a miasma sprout 5× to awaken it into a **Miasma Tree**
+- Active Miasma Tree emits a pulsing violet aura (radius 130); enemies inside take 1 HP damage every 30 frames
+- Kills inside the aura award full score (`100 × wave`)
+- Lasts ~9.6s (same as AegisTree); expires with violet particle burst
+- Visual: dead/rotted dark trunk, 5 drifting violet cloud puffs, dashed violet circle, purple timer bar
+
+### Minimee → Spice Product (build 87)
+- Minimee removed from the pickup drop pool
+- Added as spice product **[N]** (key `2` / cycle with `1`/`E`)
+- HUD product row now shows `[M] [N] [I]`
+- Spending spice spawns a Minimee companion (cap 3); if already at 3, spice is refunded
+- All Minimee AI/draw/lifetime logic unchanged — only acquisition method changed
+
+---
+
+## [2026-03-14] Spice Product Cleanup & Bomb Rework (build 86)
+
+### Removed Spice Products
+- **Tar Trap [T]**, **Blind Trap [B]**, and **Confuse Trap [C]** removed from the game
+- HUD product selector now shows only `[M] [I]`; `1`/`E` cycles between Mine and Ice Turret
+
+### Bomb Pickup — New Behavior
+- Bomb no longer kills enemies for score
+- Enemies in blast radius (700u) are converted to **spice diamonds** at their position
+- Each diamond worth `wave` spice — scales with current wave
+- Feed message: `BOMB! N ENEMIES → SPICE ×wave`
+
+### Code Cleanup
+- Removed all dead state: `tars[]`, `blindTraps[]`, `confuseTraps[]` arrays, associated constants, draw functions, and AI blocks
+- Removed dead `mine.type` field from mine objects
+- Fixed indentation bug in enemy AI forEach loop (`const spdMul` was at column 0)
+- `getSpiceCost()` now cached per while-loop iteration (was called 3×)
+- Mine blast kill bonus cached to avoid double `getWave()` call on same line
+
+---
+
 ## [2026-03-12] New Spice Products — Blind Trap & Confuse Trap (build 84)
 
 ### New Spice Product — Blind Trap [B]

@@ -82,7 +82,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'TAR TRAP', c: 'ICE TURRET', d: 'BLIND TRAP', e: 'CONFUSE TRAP' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -95,7 +95,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
   }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
-    const order = ['a', 'b', 'c', 'd', 'e'];
+    const order = ['a', 'b', 'c'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
@@ -111,25 +111,21 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], tars = [], iceTurrets = [], blindTraps = [], confuseTraps = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
+let lastBossWave = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
 const SPICE_INTERVAL = 10000;  // ms between spice spawns
 const MAX_SPICES = 6;
 const MINE_R = 16;
-const TAR_R = 48;
-const TAR_LIFE = 900;          // ~15s at 60fps baseline
 const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
-const BLIND_TRAP_R = 44;
-const BLIND_TRAP_LIFE = 600;   // ~10s at 60fps baseline
-const BLIND_TIME = 600;        // ~10s enemy blinded
-const CONFUSE_TRAP_R = 44;
-const CONFUSE_TRAP_LIFE = 600; // ~10s at 60fps baseline
-const CONFUSE_TIME = 600;      // ~10s enemy confused
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
+const MIASMA_R = 130;          // miasma tree damage radius (world units)
+const MIASMA_DMG_INTERVAL = 30; // frames between miasma damage ticks
+const MIASMA_LIFE = 9.6 * 60;  // miasma tree lifetime (frames)
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
@@ -175,8 +171,6 @@ function spawnEnemy() {
     color: `hsl(${hue},80%,50%)`,
     hue,
     frozen: false, frozenTimer: 0,
-    blinded: false, blindTimer: 0,
-    confused: false, confusedTimer: 0
   });
 }
 
@@ -195,18 +189,6 @@ function enemyFire(e) {
   e.canonAngle = a;
 }
 
-function confusedFire(e) {
-  let target = null, bestD = Infinity;
-  enemies.forEach(t => {
-    if (t === e) return;
-    const d2 = (t.x - e.x) ** 2 + (t.y - e.y) ** 2;
-    if (d2 < bestD) { bestD = d2; target = t; }
-  });
-  if (!target) return;
-  const a = Math.atan2(target.y - e.y, target.x - e.x);
-  bullets.push({ x: e.x + Math.cos(a) * (e.r + 8), y: e.y + Math.sin(a) * (e.r + 8), vx: Math.cos(a) * getBS(), vy: Math.sin(a) * getBS(), r: getBR(), life: 400, confuseFire: true });
-  e.canonAngle = a;
-}
 
 // ── PICKUPS ──
 const PICKUP_DEFS = [
@@ -219,7 +201,6 @@ const PICKUP_DEFS = [
   { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
   { type: 'pierce',  color: '#111111', label: 'PRC', name: 'Pierce'   },
   { type: 'bomb',    color: '#ffdd00', label: 'BOM', name: 'Bomb'     },
-  { type: 'minimee', color: '#1a3aaa', label: 'MIN', name: 'Minimee'  },
   { type: 'arrow',   color: '#00ddff', label: 'ARW', name: 'Homing'   },
 ];
 const UPG_MAX = { size: 10 }; // per-type overrides; default is 10
@@ -249,6 +230,26 @@ function spawnPickup() {
   pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 0, ...def });
 }
 
+function spawnBoss(wave) {
+  const a = Math.random() * Math.PI * 2;
+  const hp = 20 * (wave / 5);
+  bosses.push({
+    x: cam.x + Math.cos(a) * 520,
+    y: cam.y + Math.sin(a) * 520,
+    vx: 0, vy: 0,
+    r: 40,
+    hp, maxHp: hp,
+    shootTimer: 0,
+    canonAngle: 0,
+    bob: Math.random() * Math.PI * 2,
+    pulse: 0,
+    frozen: false, frozenTimer: 0,
+    wave,
+  });
+  feed('⚠ BOSS INCOMING — WAVE ' + wave + '!');
+  spawnFloat(cam.x, cam.y, 'BOSS!', '#ff0055');
+}
+
 function spawnSprout() {
   if (sprouts.length >= 5) return;
   const a = Math.random() * Math.PI * 2;
@@ -257,7 +258,8 @@ function spawnSprout() {
   let sy = cam.y + Math.sin(a) * d;
   const dist = Math.sqrt(sx * sx + sy * sy);
   if (dist > ARENA_R - 100) { sx *= (ARENA_R - 100) / dist; sy *= (ARENA_R - 100) / dist; }
-  sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, treeTimer: 0, pulse: 0 });
+  const kind = Math.random() < 0.5 ? 'aegis' : 'miasma';
+  sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, isMiasma: false, treeTimer: 0, miasmaTimer: 0, dmgTick: 0, pulse: 0, kind });
 }
 
 function spawnSpice() {
@@ -291,86 +293,6 @@ function drawSpice(s) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#5a3a00';
   ctx.fillText(s.amount, sx, sy);
-  ctx.restore();
-}
-
-function drawTar(t) {
-  const { sx, sy } = wToS(t.x, t.y);
-  const lifeFrac = t.life / TAR_LIFE;
-  ctx.save();
-  ctx.globalAlpha = 0.6 * lifeFrac;
-  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
-  g.addColorStop(0, '#3d2e08');
-  g.addColorStop(0.65, '#5a420e');
-  g.addColorStop(1, 'rgba(70,50,8,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(sx, sy, t.r, t.r * 0.45, 0, 0, Math.PI * 2); ctx.fill();
-  // Ripple ring
-  ctx.globalAlpha = 0.35 * lifeFrac;
-  ctx.strokeStyle = '#9a7a28'; ctx.lineWidth = 1.5;
-  const ripR = t.r * (0.45 + Math.sin(t.pulse) * 0.12);
-  ctx.beginPath(); ctx.ellipse(sx, sy, ripR, ripR * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.globalAlpha = 0.75 * lifeFrac;
-  ctx.font = 'bold 7px Orbitron, monospace';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#d4a030';
-  ctx.fillText('TAR', sx, sy);
-  ctx.restore();
-}
-
-function drawBlindTrap(t) {
-  const { sx, sy } = wToS(t.x, t.y);
-  const lifeFrac = t.life / BLIND_TRAP_LIFE;
-  ctx.save();
-  ctx.globalAlpha = 0.65 * lifeFrac;
-  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
-  g.addColorStop(0, '#ff9900'); g.addColorStop(0.6, '#cc5500'); g.addColorStop(1, 'rgba(180,60,0,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2); ctx.fill();
-  // Jagged teeth ring
-  ctx.globalAlpha = 0.85 * lifeFrac;
-  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  const N = 8;
-  for (let i = 0; i <= N; i++) {
-    const a = (i / N) * Math.PI * 2 + t.pulse;
-    const r = i % 2 === 0 ? t.r * 0.85 : t.r * 0.52;
-    i === 0 ? ctx.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r)
-            : ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
-  }
-  ctx.closePath(); ctx.stroke();
-  ctx.font = 'bold 7px Orbitron, monospace';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffdd99'; ctx.globalAlpha = 0.9 * lifeFrac;
-  ctx.fillText('BLD', sx, sy);
-  ctx.restore();
-}
-
-function drawConfuseTrap(t) {
-  const { sx, sy } = wToS(t.x, t.y);
-  const lifeFrac = t.life / CONFUSE_TRAP_LIFE;
-  ctx.save();
-  ctx.globalAlpha = 0.65 * lifeFrac;
-  const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, t.r);
-  g.addColorStop(0, '#ff3300'); g.addColorStop(0.6, '#aa1100'); g.addColorStop(1, 'rgba(150,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2); ctx.fill();
-  // Jagged teeth ring (reverse spin)
-  ctx.globalAlpha = 0.85 * lifeFrac;
-  ctx.strokeStyle = '#ff5533'; ctx.lineWidth = 2;
-  ctx.beginPath();
-  const N = 8;
-  for (let i = 0; i <= N; i++) {
-    const a = (i / N) * Math.PI * 2 - t.pulse;
-    const r = i % 2 === 0 ? t.r * 0.85 : t.r * 0.52;
-    i === 0 ? ctx.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r)
-            : ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
-  }
-  ctx.closePath(); ctx.stroke();
-  ctx.font = 'bold 7px Orbitron, monospace';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffaaaa'; ctx.globalAlpha = 0.9 * lifeFrac;
-  ctx.fillText('CNF', sx, sy);
   ctx.restore();
 }
 
@@ -430,10 +352,129 @@ function drawMine(m) {
   ctx.restore();
 }
 
+function drawBoss(b) {
+  const bob = Math.sin(b.bob) * 4;
+  const { sx, sy } = wToS(b.x, b.y + bob);
+  ctx.save();
+  ctx.translate(sx, sy);
+  // Outer aura
+  if (!lowSpec) {
+    const aura = ctx.createRadialGradient(0, 0, b.r * 0.5, 0, 0, b.r * 2.5);
+    aura.addColorStop(0, 'rgba(200,0,60,0.22)');
+    aura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+  // Spike ring
+  const spikes = 12, ir = b.r * 1.1, or = b.r * 1.75;
+  ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const ang = (i * Math.PI / spikes) + b.pulse * 0.3;
+    const rad = i % 2 === 0 ? or : ir;
+    i === 0 ? ctx.moveTo(Math.cos(ang) * rad, Math.sin(ang) * rad)
+            : ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+  }
+  ctx.closePath();
+  if (!lowSpec) { ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 20; }
+  ctx.fillStyle = 'rgba(200,0,60,0.3)';
+  ctx.fill();
+  ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke();
+  // Body
+  ctx.shadowBlur = 0;
+  if (!lowSpec) {
+    const bg = ctx.createRadialGradient(-b.r * 0.3, -b.r * 0.3, 2, 0, 0, b.r);
+    bg.addColorStop(0, '#ff3377'); bg.addColorStop(1, '#880022');
+    ctx.fillStyle = bg;
+  } else { ctx.fillStyle = '#880022'; }
+  ctx.beginPath(); ctx.arc(0, 0, b.r, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,0,80,0.6)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, b.r * 0.5, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,100,150,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+  // Barrel
+  ctx.rotate(b.canonAngle);
+  if (!lowSpec) { ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 8; }
+  ctx.fillStyle = '#cc0044';
+  ctx.beginPath(); ctx.roundRect(b.r * 0.4, -7, b.r * 1.1, 14, 3); ctx.fill();
+  ctx.restore();
+  // HP bar + label
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fillRect(sx - 44, sy - b.r - bob - 16, 88, 8);
+  const pct = b.hp / b.maxHp;
+  ctx.fillStyle = pct > 0.6 ? '#ff0055' : pct > 0.3 ? '#ff6600' : '#ff3300';
+  ctx.fillRect(sx - 44, sy - b.r - bob - 16, 88 * pct, 8);
+  ctx.strokeStyle = 'rgba(255,0,80,0.4)'; ctx.lineWidth = 1;
+  ctx.strokeRect(sx - 44, sy - b.r - bob - 16, 88, 8);
+  ctx.font = 'bold 8px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.fillStyle = '#ffaacc';
+  ctx.fillText('BOSS W' + b.wave, sx, sy - b.r - bob - 17);
+  ctx.restore();
+  // Frozen overlay
+  if (b.frozen) {
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = '#88ddff';
+    ctx.beginPath(); ctx.arc(sx, sy, b.r * 1.12, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.75;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5;
+    for (let ci = 0; ci < 8; ci++) {
+      const ca = ci * Math.PI / 4;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + Math.cos(ca) * b.r * 1.35, sy + Math.sin(ca) * b.r * 1.35);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(sx - 44, sy - b.r - bob - 28, 88, 4);
+    ctx.fillStyle = '#44ddff';
+    ctx.fillRect(sx - 44, sy - b.r - bob - 28, 88 * (b.frozenTimer / ICE_FREEZE_TIME), 4);
+    ctx.restore();
+  }
+}
+
 function drawSprout(s) {
   const { sx, sy } = wToS(s.x, s.y);
   ctx.save();
-  if (s.isTree) {
+  if (s.isMiasma) {
+    const mp = Math.sin(s.pulse);
+    // Miasma aura
+    ctx.globalAlpha = 0.08 + mp * 0.06;
+    ctx.beginPath(); ctx.arc(sx, sy, MIASMA_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#cc44ff'; ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#aa22ee'; ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    // Dead/rotted trunk
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(sx - 5, sy - 2, 10, 20);
+    // Miasma cloud puffs
+    if (!lowSpec) { ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 18 * (0.8 + mp * 0.2); }
+    const puffs = [
+      { ox: 0, oy: -22, r: 22 },
+      { ox: -14, oy: -10, r: 14 },
+      { ox: 14, oy: -10, r: 14 },
+      { ox: -8, oy: -34, r: 13 },
+      { ox: 8, oy: -34, r: 13 },
+    ];
+    puffs.forEach(({ ox, oy, r }, pi) => {
+      const drift = Math.sin(s.pulse * 0.7 + pi) * 2;
+      ctx.globalAlpha = 0.7 + mp * 0.15;
+      ctx.fillStyle = pi % 2 === 0 ? '#9922cc' : '#bb44ee';
+      ctx.beginPath(); ctx.arc(sx + ox, sy + oy + drift, r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.shadowBlur = 0;
+    // Timer bar
+    const frac = s.miasmaTimer / MIASMA_LIFE;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(sx - 24, sy - 54, 48, 5);
+    ctx.fillStyle = `hsl(${280 - (1 - frac) * 60}, 80%, 50%)`;
+    ctx.fillRect(sx - 24, sy - 54, 48 * frac, 5);
+  } else if (s.isTree) {
     const treePulse = (Math.sin(s.pulse) * 0.12 + 0.88);
     // Shield aura
     ctx.globalAlpha = 0.10 + Math.sin(s.pulse * 1.3) * 0.05;
@@ -463,17 +504,21 @@ function drawSprout(s) {
     ctx.fillRect(sx - 24, sy - 46, 48 * frac, 5);
   } else {
     const lv = s.level;
+    const isMiasmaSprout = s.kind === 'miasma';
+    const leafColor = isMiasmaSprout ? '#aa33dd' : '#33cc55';
+    const leafColor2 = isMiasmaSprout ? '#882bbb' : '#22aa44';
+    const stemColor = isMiasmaSprout ? '#6a3a8a' : '#3a8a3a';
     // Ground shadow
     ctx.globalAlpha = 0.15;
     ctx.fillStyle = '#000';
     ctx.beginPath(); ctx.ellipse(sx, sy + 6, 14, 5, 0, 0, Math.PI * 2); ctx.fill();
     ctx.globalAlpha = 1;
     // Stem
-    ctx.strokeStyle = '#3a8a3a'; ctx.lineWidth = 2.5;
+    ctx.strokeStyle = stemColor; ctx.lineWidth = 2.5;
     const stemH = 6 + lv * 5;
     ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, sy - stemH); ctx.stroke();
     // Leaves per level
-    ctx.fillStyle = '#33cc55'; ctx.shadowColor = '#33cc55'; ctx.shadowBlur = 6;
+    ctx.fillStyle = leafColor; ctx.shadowColor = leafColor; ctx.shadowBlur = 6;
     if (lv >= 1) {
       ctx.beginPath(); ctx.ellipse(sx - 7, sy - stemH + 4, 7, 4, -0.5, 0, Math.PI * 2); ctx.fill();
     }
@@ -482,7 +527,7 @@ function drawSprout(s) {
       ctx.beginPath(); ctx.arc(sx, sy - stemH - 2, 6, 0, Math.PI * 2); ctx.fill();
     }
     if (lv >= 3) {
-      ctx.fillStyle = '#22aa44';
+      ctx.fillStyle = leafColor2;
       ctx.beginPath(); ctx.arc(sx - 10, sy - stemH - 6, 8, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(sx + 10, sy - stemH - 6, 8, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(sx, sy - stemH - 12, 9, 0, Math.PI * 2); ctx.fill();
@@ -775,8 +820,6 @@ function initDomCache() {
   _dom.sprodA    = document.getElementById('sprod-a');
   _dom.sprodB    = document.getElementById('sprod-b');
   _dom.sprodC    = document.getElementById('sprod-c');
-  _dom.sprodD    = document.getElementById('sprod-d');
-  _dom.sprodE    = document.getElementById('sprod-e');
 }
 
 function updateUI() {
@@ -816,8 +859,6 @@ function updateUI() {
     _dom.sprodA.classList.toggle('active', spiceProductType === 'a');
     _dom.sprodB.classList.toggle('active', spiceProductType === 'b');
     _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
-    _dom.sprodD.classList.toggle('active', spiceProductType === 'd');
-    _dom.sprodE.classList.toggle('active', spiceProductType === 'e');
   }
 }
 
@@ -891,6 +932,8 @@ function continueFromAd() {
   // Halve elapsed time → halves wave
   elapsedSec = Math.floor(elapsedSec / 2);
   lastWave = getWave();
+  bosses.length = 0;
+  lastBossWave = Math.floor(getWave() / 5) * 5;
 
   // Halve score
   score = Math.floor(score / 2);
@@ -902,7 +945,7 @@ function continueFromAd() {
   // Clear active objects
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
-  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; blindTraps.length = 0; confuseTraps.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   spice = 0; spiceProductCount = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
@@ -989,10 +1032,11 @@ function restartGame() {
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
   pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
-  spices.length = 0; mines.length = 0; tars.length = 0; iceTurrets.length = 0; blindTraps.length = 0; confuseTraps.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1;
+  bosses.length = 0; lastBossWave = 0;
   if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
   document.getElementById('ad-overlay').classList.remove('show');
   document.getElementById('msg-overlay').classList.remove('show');
@@ -1116,6 +1160,13 @@ function loop(now) {
     enemyTimer += dt;
     if (enemyTimer >= getSpawnInterval()) { enemyTimer = 0; spawnEnemy(); }
 
+    // Boss spawn check (every 5 waves)
+    const waveNow = getWave();
+    if (waveNow >= 5 && waveNow % 5 === 0 && waveNow !== lastBossWave) {
+      lastBossWave = waveNow;
+      spawnBoss(waveNow);
+    }
+
     // Enemy AI
     const espd = getEnemySpeed();
     enemies.forEach(e => {
@@ -1135,44 +1186,7 @@ function loop(now) {
         }
         return;
       }
-      // Blinded: lock velocity, no firing
-      if (e.blinded) {
-        e.blindTimer -= dtf;
-        e.bob += 0.03 * dtf;
-        e.vx *= Math.pow(0.96, dtf); e.vy *= Math.pow(0.96, dtf);
-        e.x += e.vx * dtf; e.y += e.vy * dtf;
-        e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
-        if (e.blindTimer <= 0) { e.blinded = false; spawnFloat(e.x, e.y, 'SIGHT BACK!', '#ff8800'); }
-        return;
-      }
-      // Blind trap detection
-      for (const bt of blindTraps) {
-        const bdx = e.x - bt.x, bdy = e.y - bt.y;
-        if (bdx * bdx + bdy * bdy < bt.r * bt.r && !e.blinded) {
-          e.blinded = true; e.blindTimer = BLIND_TIME;
-          spawnFloat(e.x, e.y, 'BLINDED!', '#ff8800');
-        }
-      }
-      // Confuse trap detection
-      for (const ct of confuseTraps) {
-        const cdx = e.x - ct.x, cdy = e.y - ct.y;
-        if (cdx * cdx + cdy * cdy < ct.r * ct.r && !e.confused) {
-          e.confused = true; e.confusedTimer = CONFUSE_TIME;
-          spawnFloat(e.x, e.y, 'CONFUSED!', '#ff2200');
-        }
-      }
-      // Confused timer
-      if (e.confused) {
-        e.confusedTimer -= dtf;
-        if (e.confusedTimer <= 0) { e.confused = false; spawnFloat(e.x, e.y, 'SNAPPED OUT!', '#ff6644'); }
-      }
-      // Tar slow
-      let tarMul = 1;
-      for (const tr of tars) {
-        const tdx = e.x - tr.x, tdy = e.y - tr.y;
-        if (tdx * tdx + tdy * tdy < tr.r * tr.r) { tarMul = 0.25; break; }
-      }
-      const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul * tarMul;
+      const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
       const dx = cam.x - e.x, dy = cam.y - e.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
       if (d > 85) { e.vx += (dx / d) * espd * spdMul * dtf; e.vy += (dy / d) * espd * spdMul * dtf; }
@@ -1182,7 +1196,7 @@ function loop(now) {
       e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
       const nearTree = sprouts.some(s => { if (!s.isTree) return false; const tx = e.x - s.x, ty = e.y - s.y; return tx * tx + ty * ty < (SPROUT_SHIELD_R + e.r) ** 2; });
       if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
-      else { e.shootTimer += dt; if (!nearTree && e.shootTimer >= e.shootInterval) { e.shootTimer = 0; if (e.confused) confusedFire(e); else enemyFire(e); } }
+      else { e.shootTimer += dt; if (!nearTree && e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
       // Tree shield pushback
       for (let si = 0; si < sprouts.length; si++) {
         const s = sprouts[si];
@@ -1241,6 +1255,39 @@ function loop(now) {
       }
     }
 
+    // Boss AI
+    for (let bi = bosses.length - 1; bi >= 0; bi--) {
+      const b = bosses[bi];
+      b.bob += 0.025 * dtf;
+      b.pulse += 0.04 * dtf;
+      if (b.frozen) {
+        b.frozenTimer -= dtf;
+        if (b.frozenTimer <= 0) { b.frozen = false; spawnFloat(b.x, b.y, 'UNFROZEN!', '#88ddff'); }
+        continue;
+      }
+      const bdx = cam.x - b.x, bdy = cam.y - b.y;
+      const bd = Math.sqrt(bdx * bdx + bdy * bdy) || 1;
+      const bspd = 0.045;
+      if (bd > 200) { b.vx += (bdx / bd) * bspd * dtf; b.vy += (bdy / bd) * bspd * dtf; }
+      else if (bd < 150) { b.vx -= (bdx / bd) * bspd * dtf; b.vy -= (bdy / bd) * bspd * dtf; }
+      b.vx *= Math.pow(0.94, dtf); b.vy *= Math.pow(0.94, dtf);
+      b.x += b.vx * dtf; b.y += b.vy * dtf;
+      b.canonAngle = Math.atan2(cam.y - b.y, cam.x - b.x);
+      // Burst fire: bullets spread 18° apart, count scales with wave
+      b.shootTimer += dt;
+      if (b.shootTimer >= 1800) {
+        b.shootTimer = 0;
+        const bulletCount = Math.floor(b.wave / 5) + 2; // W5→3, W10→4, W15→5, W20→6…
+        const spread = Math.PI / 10;
+        const half = (bulletCount - 1) / 2;
+        const bspeed = getEnemyBulletSpeed() * 1.3;
+        for (let si = 0; si < bulletCount; si++) {
+          const a = b.canonAngle + (si - half) * spread;
+          eBullets.push({ x: b.x + Math.cos(a) * (b.r + 12), y: b.y + Math.sin(a) * (b.r + 12), vx: Math.cos(a) * bspeed, vy: Math.sin(a) * bspeed, r: 11, life: 300, boss: true });
+        }
+      }
+    }
+
     // Player bullet collisions
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
@@ -1284,6 +1331,37 @@ function loop(now) {
         }
       }
       if (hit) continue;
+    }
+
+    // Player bullet vs boss
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      const b = bullets[i];
+      for (let bi = bosses.length - 1; bi >= 0; bi--) {
+        const boss = bosses[bi];
+        if (b.pierce && b.hit && b.hit.has(boss)) continue;
+        const dx = b.x - boss.x, dy = b.y - boss.y;
+        if (dx * dx + dy * dy < (b.r + boss.r) ** 2) {
+          if (b.pierce) b.hit.add(boss);
+          const dmg = b.miniDmg !== undefined ? b.miniDmg : (b.arrow ? getBD() * 2 : getBD());
+          boss.hp -= dmg;
+          if (b.ice && !boss.frozen) { boss.frozen = true; boss.frozenTimer = ICE_FREEZE_TIME; spawnFloat(boss.x, boss.y, 'BOSS FROZEN!', '#88ddff'); }
+          explode(boss.x, boss.y, '#ff0055', 12);
+          if (boss.hp <= 0) {
+            const bonus = 500 * getWave();
+            explode(boss.x, boss.y, '#ff0055', 80);
+            shockwaves.push({ x: boss.x, y: boss.y, r: 0, maxR: 350, life: 1.0 });
+            for (let si = 0; si < 3; si++) {
+              const sa = Math.random() * Math.PI * 2, sd = 30 + Math.random() * 80;
+              spices.push({ x: boss.x + Math.cos(sa) * sd, y: boss.y + Math.sin(sa) * sd, r: 10, bob: Math.random() * Math.PI * 2, amount: boss.wave });
+            }
+            score += bonus; totalPoints += bonus;
+            feed('BOSS DEFEATED! +' + bonus.toLocaleString());
+            spawnFloat(boss.x, boss.y, 'BOSS DOWN!', '#ff0055');
+            bosses.splice(bi, 1);
+          }
+          if (!b.pierce) { bullets.splice(i, 1); break; }
+        }
+      }
     }
 
     // Enemy bullet collisions
@@ -1366,16 +1444,16 @@ function loop(now) {
           feed('PICKUP! +' + bonus.toLocaleString() + ' POINTS');
         } else if (p.type === 'bomb') {
           const BOMB_R = 700;
-          let killed = 0;
+          let converted = 0;
+          const wave = getWave();
           for (let j = enemies.length - 1; j >= 0; j--) {
             const e = enemies[j];
             const dx = e.x - cam.x, dy = e.y - cam.y;
             if (dx * dx + dy * dy <= BOMB_R * BOMB_R) {
               explode(e.x, e.y, e.color, 20);
-              const bonus = 100 * getWave();
-              score += bonus; totalPoints += bonus;
+              spices.push({ x: e.x, y: e.y, r: 10, bob: Math.random() * Math.PI * 2, amount: wave });
               enemies.splice(j, 1);
-              killed++;
+              converted++;
             }
           }
           for (let j = eBullets.length - 1; j >= 0; j--) {
@@ -1386,17 +1464,7 @@ function loop(now) {
           explode(cam.x, cam.y, '#ffdd00', 60);
           shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: BOMB_R, life: 1.0 });
           spawnFloat(p.x, p.y, 'BOOM!', p.color);
-          feed('BOMB! ' + killed + ' ENEMIES CLEARED');
-        } else if (p.type === 'minimee') {
-          if (minimees.length < 3) {
-            const offsetAngle = minimees.length * (Math.PI * 2 / 3);
-            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle, spawnTime: performance.now() });
-            spawnFloat(p.x, p.y, 'MINIMEE!', p.color);
-            feed('PICKUP! MINIMEE COMPANION (' + minimees.length + '/3)');
-          } else {
-            spawnFloat(p.x, p.y, 'MIN FULL', p.color);
-            feed('PICKUP! MINIMEE — MAX COMPANIONS');
-          }
+          feed('BOMB! ' + converted + ' ENEMIES → SPICE ×' + wave);
         } else if (p.type === 'pierce') {
           if (upg.pierce < 10) {
             upg.pierce++;
@@ -1449,29 +1517,28 @@ function loop(now) {
         spices.splice(i, 1);
         // Auto-drop product when spice >= cost
         while (spice >= getSpiceCost()) {
-          spice -= getSpiceCost();
+          const cost = getSpiceCost();
+          spice -= cost;
           spiceProductCount++;
           const nextCost = getSpiceCost();
           if (spiceProductType === 'a') {
-            mines.push({ x: cam.x, y: cam.y, r: MINE_R, type: 'a', pulse: 0 });
+            mines.push({ x: cam.x, y: cam.y, r: MINE_R, pulse: 0 });
             spawnFloat(cam.x, cam.y, 'MINE PLACED', '#ff6600');
             feed('MINE [M] PLACED — next cost: ' + nextCost);
           } else if (spiceProductType === 'b') {
-            tars.push({ x: cam.x, y: cam.y, r: TAR_R, life: TAR_LIFE, pulse: 0 });
-            spawnFloat(cam.x, cam.y, 'TAR PLACED', '#8a6a1a');
-            feed('TAR TRAP [T] PLACED — next cost: ' + nextCost);
+            if (minimees.length < 3) {
+              const offsetAngle = minimees.length * (Math.PI * 2 / 3);
+              minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle, spawnTime: performance.now() });
+              spawnFloat(cam.x, cam.y, 'MINIMEE!', '#1a3aaa');
+              feed('MINIMEE [N] SPAWNED (' + minimees.length + '/3) — next cost: ' + nextCost);
+            } else {
+              spice += cost; spiceProductCount--;
+              feed('MINIMEE — MAX COMPANIONS (3/3)');
+            }
           } else if (spiceProductType === 'c') {
             iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
             spawnFloat(cam.x, cam.y, 'ICE TURRET!', '#88ddff');
             feed('ICE TURRET [I] PLACED — next cost: ' + nextCost);
-          } else if (spiceProductType === 'd') {
-            blindTraps.push({ x: cam.x, y: cam.y, r: BLIND_TRAP_R, life: BLIND_TRAP_LIFE, pulse: 0 });
-            spawnFloat(cam.x, cam.y, 'BLIND TRAP!', '#ff8800');
-            feed('BLIND TRAP [B] PLACED — next cost: ' + nextCost);
-          } else if (spiceProductType === 'e') {
-            confuseTraps.push({ x: cam.x, y: cam.y, r: CONFUSE_TRAP_R, life: CONFUSE_TRAP_LIFE, pulse: 0 });
-            spawnFloat(cam.x, cam.y, 'CONFUSE TRAP!', '#ff2200');
-            feed('CONFUSE TRAP [C] PLACED — next cost: ' + nextCost);
           }
         }
       }
@@ -1496,7 +1563,7 @@ function loop(now) {
             const bdx = be.x - m.x, bdy = be.y - m.y;
             if (bdx * bdx + bdy * bdy < BLAST_R * BLAST_R) {
               explode(be.x, be.y, be.color, 25);
-              score += 100 * getWave(); totalPoints += 100 * getWave();
+              const killBonus = 100 * getWave(); score += killBonus; totalPoints += killBonus;
               enemies.splice(bi, 1);
               killed++;
             }
@@ -1508,39 +1575,6 @@ function loop(now) {
         }
       }
       if (triggered) continue;
-    }
-
-    // Tar trap update
-    for (let ti = tars.length - 1; ti >= 0; ti--) {
-      const t = tars[ti];
-      t.life -= dtf;
-      t.pulse += 0.04 * dtf;
-      if (t.life <= 0) {
-        spawnFloat(t.x, t.y, 'TAR GONE', '#8a6a1a');
-        tars.splice(ti, 1);
-      }
-    }
-
-    // Blind trap update
-    for (let ti = blindTraps.length - 1; ti >= 0; ti--) {
-      const t = blindTraps[ti];
-      t.life -= dtf;
-      t.pulse += 0.04 * dtf;
-      if (t.life <= 0) {
-        spawnFloat(t.x, t.y, 'BLIND GONE', '#ff8800');
-        blindTraps.splice(ti, 1);
-      }
-    }
-
-    // Confuse trap update
-    for (let ti = confuseTraps.length - 1; ti >= 0; ti--) {
-      const t = confuseTraps[ti];
-      t.life -= dtf;
-      t.pulse += 0.04 * dtf;
-      if (t.life <= 0) {
-        spawnFloat(t.x, t.y, 'CONFUSE GONE', '#ff2200');
-        confuseTraps.splice(ti, 1);
-      }
     }
 
     // Ice turret AI
@@ -1589,19 +1623,58 @@ function loop(now) {
         }
         continue;
       }
+      if (s.isMiasma) {
+        s.miasmaTimer -= dtf;
+        if (s.miasmaTimer <= 0) {
+          explode(s.x, s.y, '#9933cc', 20);
+          spawnFloat(s.x, s.y, 'Miasma gone', '#9933cc');
+          feed('MIASMA TREE EXPIRED');
+          sprouts.splice(i, 1);
+          continue;
+        }
+        s.dmgTick += dtf;
+        if (s.dmgTick >= MIASMA_DMG_INTERVAL) {
+          s.dmgTick = 0;
+          for (let ei = enemies.length - 1; ei >= 0; ei--) {
+            const e = enemies[ei];
+            const mdx = e.x - s.x, mdy = e.y - s.y;
+            if (mdx * mdx + mdy * mdy <= MIASMA_R * MIASMA_R) {
+              e.hp--;
+              if (e.hp <= 0) {
+                const killBonus = 100 * getWave();
+                score += killBonus; totalPoints += killBonus;
+                explode(e.x, e.y, e.color, 20);
+                spawnFloat(e.x, e.y, '+' + killBonus, '#ffdd00');
+                feed('ENEMY KILLED BY MIASMA');
+                enemies.splice(ei, 1);
+              }
+            }
+          }
+        }
+        continue;
+      }
       if (s.touchCooldown > 0) s.touchCooldown -= dtf;
       const sdx = s.x - cam.x, sdy = s.y - cam.y;
+      const growColor = s.kind === 'miasma' ? '#bb44ee' : '#33cc55';
       if (sdx * sdx + sdy * sdy < (s.r + 24) ** 2 && s.touchCooldown <= 0) {
         s.level++;
         s.touchCooldown = 120;
-        explode(s.x, s.y, '#33cc55', 8);
+        explode(s.x, s.y, growColor, 8);
         if (s.level >= SPROUT_MAX_LEVEL) {
-          s.isTree = true;
-          s.treeTimer = 9.6 * 60;
-          spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
-          feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
+          if (s.kind === 'miasma') {
+            s.isMiasma = true;
+            s.miasmaTimer = MIASMA_LIFE;
+            spawnFloat(s.x, s.y, 'MIASMA!', '#bb44ee');
+            feed('SPROUT → MIASMA TREE! DAMAGE AURA ACTIVE');
+          } else {
+            s.isTree = true;
+            s.treeTimer = 9.6 * 60;
+            spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
+            feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
+          }
         } else {
-          spawnFloat(s.x, s.y, 'AegisTree ' + s.level + '/' + SPROUT_MAX_LEVEL, '#33cc55');
+          const treeName = s.kind === 'miasma' ? 'MiasmaTree' : 'AegisTree';
+          spawnFloat(s.x, s.y, treeName + ' ' + s.level + '/' + SPROUT_MAX_LEVEL, growColor);
           feed('SPROUT GROWS ' + s.level + '/' + SPROUT_MAX_LEVEL + ' — touch again in 2s!');
         }
       }
@@ -1662,9 +1735,6 @@ function loop(now) {
     ctx.restore();
   });
 
-  tars.forEach(t => drawTar(t));
-  blindTraps.forEach(t => drawBlindTrap(t));
-  confuseTraps.forEach(t => drawConfuseTrap(t));
   pickups.forEach(p => drawPickup(p));
   spices.forEach(s => drawSpice(s));
   mines.forEach(m => drawMine(m));
@@ -1685,7 +1755,9 @@ function loop(now) {
 
   eBullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
-    drawBullet(sx, sy, b.r, b.awakened ? '#ff4400' : '#66ddff', b.awakened ? '#990000' : '#0066bb');
+    const c1 = b.boss ? '#ff0066' : b.awakened ? '#ff4400' : '#66ddff';
+    const c2 = b.boss ? '#880033' : b.awakened ? '#990000' : '#0066bb';
+    drawBullet(sx, sy, b.r, c1, c2);
   });
 
   bullets.forEach(b => {
@@ -1748,48 +1820,6 @@ function loop(now) {
       ctx.fillRect(sx - 24, sy - 46, 48 * (e.frozenTimer / ICE_FREEZE_TIME), 4);
       ctx.restore();
     }
-    // Blinded overlay
-    if (e.blinded) {
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = '#ff8800';
-      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.1, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.9;
-      ctx.strokeStyle = '#ffcc44'; ctx.lineWidth = 2.5;
-      // X eyes
-      ctx.beginPath();
-      ctx.moveTo(sx - 9, sy - 4); ctx.lineTo(sx - 4, sy + 1);
-      ctx.moveTo(sx - 4, sy - 4); ctx.lineTo(sx - 9, sy + 1);
-      ctx.moveTo(sx + 4, sy - 4); ctx.lineTo(sx + 9, sy + 1);
-      ctx.moveTo(sx + 9, sy - 4); ctx.lineTo(sx + 4, sy + 1);
-      ctx.stroke();
-      ctx.globalAlpha = 0.8;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(sx - 24, sy - 54, 48, 4);
-      ctx.fillStyle = '#ffaa00';
-      ctx.fillRect(sx - 24, sy - 54, 48 * (e.blindTimer / BLIND_TIME), 4);
-      ctx.restore();
-    }
-    // Confused overlay
-    if (e.confused) {
-      ctx.save();
-      ctx.globalAlpha = 0.45;
-      ctx.fillStyle = '#ff2200';
-      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.1, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.9;
-      ctx.strokeStyle = '#ff8866'; ctx.lineWidth = 2;
-      // ? swirl
-      ctx.beginPath(); ctx.arc(sx, sy - 5, 7, -Math.PI * 0.9, Math.PI * 0.5); ctx.stroke();
-      ctx.beginPath(); ctx.arc(sx, sy + 3, 3, 0, Math.PI * 1.5); ctx.stroke();
-      ctx.fillStyle = '#ff8866';
-      ctx.beginPath(); ctx.arc(sx, sy + 8, 1.5, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.8;
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.fillRect(sx - 24, sy - 54, 48, 4);
-      ctx.fillStyle = '#ff5533';
-      ctx.fillRect(sx - 24, sy - 54, 48 * (e.confusedTimer / CONFUSE_TIME), 4);
-      ctx.restore();
-    }
     ctx.save();
     ctx.fillStyle = 'rgba(200,210,230,0.8)';
     ctx.fillRect(sx - 24, sy - 38, 48, 6);
@@ -1800,6 +1830,8 @@ function loop(now) {
     ctx.strokeRect(sx - 24, sy - 38, 48, 6);
     ctx.restore();
   });
+
+  bosses.forEach(b => drawBoss(b));
 
   minimees.forEach(m => {
     const bob = Math.sin(m.bob) * 3;
