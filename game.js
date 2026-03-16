@@ -111,8 +111,11 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
+let lastExtraWave = 0;
+const EXTRA_LETTERS = ['e', 'x', 't', 'r', 'a'];
+const extraCollected = { e: false, x: false, t: false, r: false, a: false };
 let lastBossWave = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
 const SPICE_INTERVAL = 10000;  // ms between spice spawns
@@ -126,6 +129,9 @@ const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
 const MIASMA_R = 130;          // miasma tree damage radius (world units)
 const MIASMA_DMG_INTERVAL = 30; // frames between miasma damage ticks
 const MIASMA_LIFE = 9.6 * 60;  // miasma tree lifetime (frames)
+const BARRIER_WALL_LEN = 200;  // full barrier wall length (world units)
+const BARRIER_WALL_LIFE = 3600; // ~60s at 60fps baseline
+const BARRIER_THICKNESS = 8;   // collision half-thickness (world units)
 let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
@@ -197,7 +203,6 @@ const PICKUP_DEFS = [
   { type: 'speed', color: '#ff8800', label: 'VEL', name: 'Blt.Speed'  },
   { type: 'rate',  color: '#aa44ff', label: 'RTE', name: 'Fire Rate'  },
   { type: 'dmg',   color: '#aaaaaa', label: 'PWR', name: 'Blt.Power'  },
-  { type: 'heart', color: '#ff1aff', label: '♥',   name: 'Heart'      },
   { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
   { type: 'pierce',  color: '#111111', label: 'PRC', name: 'Pierce'   },
   { type: 'bomb',    color: '#ffdd00', label: 'BOM', name: 'Bomb'     },
@@ -251,15 +256,16 @@ function spawnBoss(wave) {
 }
 
 function spawnSprout() {
-  if (sprouts.length >= 5) return;
+  if (sprouts.length >= 8) return;
   const a = Math.random() * Math.PI * 2;
   const d = 180 + Math.random() * 320;
   let sx = cam.x + Math.cos(a) * d;
   let sy = cam.y + Math.sin(a) * d;
   const dist = Math.sqrt(sx * sx + sy * sy);
   if (dist > ARENA_R - 100) { sx *= (ARENA_R - 100) / dist; sy *= (ARENA_R - 100) / dist; }
-  const kind = Math.random() < 0.5 ? 'aegis' : 'miasma';
-  sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, isMiasma: false, treeTimer: 0, miasmaTimer: 0, dmgTick: 0, pulse: 0, kind });
+  const rnd = Math.random();
+  const kind = rnd < 0.34 ? 'aegis' : rnd < 0.67 ? 'miasma' : 'barrier';
+  sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, isMiasma: false, isBarrier: false, treeTimer: 0, miasmaTimer: 0, barrierTimer: kind === 'barrier' ? BARRIER_WALL_LIFE : 0, dmgTick: 0, pulse: 0, kind, angle: Math.random() * Math.PI });
 }
 
 function spawnSpice() {
@@ -272,6 +278,58 @@ function spawnSpice() {
   if (dist > ARENA_R - 80) { sx *= (ARENA_R - 80) / dist; sy *= (ARENA_R - 80) / dist; }
   const amount = Math.floor(Math.random() * (getWave() + 10)) + 1;
   spices.push({ x: sx, y: sy, r: 10, bob: Math.random() * Math.PI * 2, amount });
+}
+
+function spawnExtraLetter() {
+  const letter = EXTRA_LETTERS[Math.floor(Math.random() * EXTRA_LETTERS.length)];
+  const a = Math.random() * Math.PI * 2;
+  const d = 120 + Math.random() * 260;
+  let px = cam.x + Math.cos(a) * d;
+  let py = cam.y + Math.sin(a) * d;
+  const pdist = Math.sqrt(px * px + py * py);
+  if (pdist > ARENA_R - 80) { px *= (ARENA_R - 80) / pdist; py *= (ARENA_R - 80) / pdist; }
+  extraPickups.push({ x: px, y: py, r: 14, bob: Math.random() * Math.PI * 2, letter });
+}
+
+function updateExtraBoard() {
+  EXTRA_LETTERS.forEach(l => {
+    const el = document.getElementById('el-' + l);
+    if (el) el.classList.toggle('lit', extraCollected[l]);
+  });
+}
+
+function drawExtraPickup(p) {
+  const { sx, sy } = wToS(p.x, p.y + Math.sin(p.bob) * 5);
+  ctx.save();
+  const pulse = Math.sin(p.bob * 2) * 0.5 + 0.5;
+  const s = p.r * 2; // side length
+  // outer pulse ring (square)
+  ctx.globalAlpha = 0.3 + pulse * 0.25;
+  ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 1.5;
+  const os = s * (1.5 + pulse * 0.35);
+  ctx.strokeRect(sx - os / 2, sy - os / 2, os, os);
+  // filled square
+  ctx.globalAlpha = 0.92;
+  if (!lowSpec) {
+    ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 14;
+    const g = ctx.createLinearGradient(sx - p.r, sy - p.r, sx + p.r, sy + p.r);
+    g.addColorStop(0, '#fff9cc'); g.addColorStop(0.5, '#ffcc00'); g.addColorStop(1, '#ff8800');
+    ctx.fillStyle = g;
+  } else {
+    ctx.fillStyle = '#ffcc00';
+  }
+  ctx.beginPath(); ctx.roundRect(sx - p.r, sy - p.r, s, s, 3); ctx.fill();
+  // border
+  if (!lowSpec) { ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,0.4)'; }
+  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.5; ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.roundRect(sx - p.r, sy - p.r, s, s, 3); ctx.stroke();
+  // letter
+  ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.font = 'bold 12px Orbitron, monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(p.letter.toUpperCase(), sx, sy);
+  ctx.restore();
 }
 
 function drawSpice(s) {
@@ -437,7 +495,34 @@ function drawBoss(b) {
 function drawSprout(s) {
   const { sx, sy } = wToS(s.x, s.y);
   ctx.save();
-  if (s.isMiasma) {
+  if (s.isBarrier) {
+    const c = Math.cos(s.angle), sn = Math.sin(s.angle);
+    const hl = BARRIER_WALL_LEN / 2;
+    const x1s = sx - c * hl, y1s = sy - sn * hl;
+    const x2s = sx + c * hl, y2s = sy + sn * hl;
+    if (!lowSpec) { ctx.shadowColor = '#8b5a2b'; ctx.shadowBlur = 18; }
+    ctx.strokeStyle = 'rgba(139,90,43,0.3)';
+    ctx.lineWidth = 18; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
+    ctx.shadowBlur = 6;
+    ctx.strokeStyle = '#a0622a'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
+    ctx.strokeStyle = '#f0d0a0'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
+    const frac = s.barrierTimer / BARRIER_WALL_LIFE;
+    const secsLeft = Math.ceil(s.barrierTimer / 60);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(sx - 30, sy - 18, 60, 8);
+    ctx.fillStyle = `hsl(${30 * frac + 10}, 65%, 40%)`;
+    ctx.fillRect(sx - 30, sy - 18, 60 * frac, 8);
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1;
+    ctx.strokeRect(sx - 30, sy - 18, 60, 8);
+    ctx.font = 'bold 7px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillStyle = '#f0d0a0';
+    ctx.fillText(secsLeft + 's', sx, sy - 19);
+  } else if (s.isMiasma) {
     const mp = Math.sin(s.pulse);
     // Miasma aura
     ctx.globalAlpha = 0.08 + mp * 0.06;
@@ -502,6 +587,19 @@ function drawSprout(s) {
     ctx.fillRect(sx - 24, sy - 46, 48, 5);
     ctx.fillStyle = `hsl(${120 * frac}, 80%, 45%)`;
     ctx.fillRect(sx - 24, sy - 46, 48 * frac, 5);
+  } else if (s.kind === 'barrier') {
+    const len = s.level * 35;
+    const c = Math.cos(s.angle), sn = Math.sin(s.angle);
+    const x1s = sx - c * len / 2, y1s = sy - sn * len / 2;
+    const x2s = sx + c * len / 2, y2s = sy + sn * len / 2;
+    if (!lowSpec) { ctx.shadowColor = '#a0622a'; ctx.shadowBlur = 8; }
+    ctx.strokeStyle = '#6b3d1a';
+    ctx.lineWidth = 4 + s.level;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#d4935a';
+    ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI * 2); ctx.fill();
   } else {
     const lv = s.level;
     const isMiasmaSprout = s.kind === 'miasma';
@@ -603,6 +701,20 @@ function feed(txt) {
 // ── DRAW HELPERS ──
 function wToS(wx, wy) {
   return { sx: wx - cam.x + W / 2, sy: wy - cam.y + H / 2 };
+}
+
+function distToSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.hypot(px - ax, py - ay);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2));
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+
+function barrierEndpoints(s) {
+  const len = s.isBarrier ? BARRIER_WALL_LEN : s.level * 35;
+  const c = Math.cos(s.angle), sn = Math.sin(s.angle);
+  return { x1: s.x - c * len / 2, y1: s.y - sn * len / 2, x2: s.x + c * len / 2, y2: s.y + sn * len / 2 };
 }
 
 function drawGrid() {
@@ -813,7 +925,7 @@ function initDomCache() {
   _dom.scoreVal  = document.getElementById('score-val');
   _dom.upgStatus = document.getElementById('upg-status');
   _dom.waveVal   = document.getElementById('wave-val');
-  _dom.hearts    = Array.from({ length: 5 }, (_, i) => document.getElementById('h' + i));
+  _dom.hearts    = Array.from({ length: 6 }, (_, i) => document.getElementById('h' + i));
   _dom.spiceVal  = document.getElementById('spice-val');
   _dom.spiceFill = document.getElementById('spice-fill');
   _dom.spiceCap  = document.getElementById('spice-cap');
@@ -845,7 +957,7 @@ function updateUI() {
   }
   if (life !== _uiLife) {
     _uiLife = life;
-    for (let i = 0; i < 5; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
+    for (let i = 0; i < 6; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
   }
   const cost = getSpiceCost();
   if (spice !== _uiSpice || cost !== _uiSpiceCost) {
@@ -947,6 +1059,7 @@ function continueFromAd() {
   pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   spice = 0; spiceProductCount = 0;
+  extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
 
@@ -1033,9 +1146,10 @@ function restartGame() {
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
   pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
+  extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
-  elapsedSec = 0; lastWave = 1;
+  elapsedSec = 0; lastWave = 1; lastExtraWave = 0;
   bosses.length = 0; lastBossWave = 0;
   if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
   document.getElementById('ad-overlay').classList.remove('show');
@@ -1149,6 +1263,24 @@ function loop(now) {
       const scale = ARENA_R / distFromCenter;
       cam.x *= scale; cam.y *= scale;
     }
+    // Barrier blocking for player
+    for (let si = 0; si < sprouts.length; si++) {
+      const s = sprouts[si];
+      if (s.kind !== 'barrier') continue;
+      const { x1, y1, x2, y2 } = barrierEndpoints(s);
+      const bDist = distToSeg(cam.x, cam.y, x1, y1, x2, y2);
+      const blockR = 24 + BARRIER_THICKNESS;
+      if (bDist < blockR) {
+        const sdx = x2 - x1, sdy = y2 - y1;
+        const l2 = sdx * sdx + sdy * sdy || 1;
+        const t2 = Math.max(0, Math.min(1, ((cam.x - x1) * sdx + (cam.y - y1) * sdy) / l2));
+        const cx2 = x1 + t2 * sdx, cy2 = y1 + t2 * sdy;
+        const nx = cam.x - cx2, ny = cam.y - cy2;
+        const nd = Math.sqrt(nx * nx + ny * ny) || 1;
+        cam.x = cx2 + (nx / nd) * blockR;
+        cam.y = cy2 + (ny / nd) * blockR;
+      }
+    }
 
     if (!joyR.active) cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
 
@@ -1165,6 +1297,12 @@ function loop(now) {
     if (waveNow >= 5 && waveNow % 5 === 0 && waveNow !== lastBossWave) {
       lastBossWave = waveNow;
       spawnBoss(waveNow);
+    }
+
+    // EXTRA letter spawn on wave-up
+    if (waveNow > 1 && waveNow > lastExtraWave) {
+      lastExtraWave = waveNow;
+      spawnExtraLetter();
     }
 
     // Enemy AI
@@ -1209,6 +1347,26 @@ function loop(now) {
           e.y = s.y + (tdy / tdist) * minDist;
           const dot = e.vx * (tdx / tdist) + e.vy * (tdy / tdist);
           if (dot < 0) { e.vx -= dot * (tdx / tdist); e.vy -= dot * (tdy / tdist); }
+        }
+      }
+      // Barrier pushback
+      for (let si = 0; si < sprouts.length; si++) {
+        const s = sprouts[si];
+        if (s.kind !== 'barrier') continue;
+        const { x1, y1, x2, y2 } = barrierEndpoints(s);
+        const bDist = distToSeg(e.x, e.y, x1, y1, x2, y2);
+        const blockR = e.r + BARRIER_THICKNESS;
+        if (bDist < blockR) {
+          const sdx = x2 - x1, sdy = y2 - y1;
+          const l2 = sdx * sdx + sdy * sdy || 1;
+          const t2 = Math.max(0, Math.min(1, ((e.x - x1) * sdx + (e.y - y1) * sdy) / l2));
+          const cx2 = x1 + t2 * sdx, cy2 = y1 + t2 * sdy;
+          const nx = e.x - cx2, ny = e.y - cy2;
+          const nd = Math.sqrt(nx * nx + ny * ny) || 1;
+          e.x = cx2 + (nx / nd) * blockR;
+          e.y = cy2 + (ny / nd) * blockR;
+          const dot = e.vx * (nx / nd) + e.vy * (ny / nd);
+          if (dot < 0) { e.vx -= dot * (nx / nd); e.vy -= dot * (ny / nd); }
         }
       }
     });
@@ -1272,6 +1430,26 @@ function loop(now) {
       else if (bd < 150) { b.vx -= (bdx / bd) * bspd * dtf; b.vy -= (bdy / bd) * bspd * dtf; }
       b.vx *= Math.pow(0.94, dtf); b.vy *= Math.pow(0.94, dtf);
       b.x += b.vx * dtf; b.y += b.vy * dtf;
+      // Barrier blocking for boss
+      for (let si = 0; si < sprouts.length; si++) {
+        const s = sprouts[si];
+        if (s.kind !== 'barrier') continue;
+        const { x1, y1, x2, y2 } = barrierEndpoints(s);
+        const bDist = distToSeg(b.x, b.y, x1, y1, x2, y2);
+        const blockR = b.r + BARRIER_THICKNESS;
+        if (bDist < blockR) {
+          const sdx = x2 - x1, sdy = y2 - y1;
+          const l2 = sdx * sdx + sdy * sdy || 1;
+          const t2 = Math.max(0, Math.min(1, ((b.x - x1) * sdx + (b.y - y1) * sdy) / l2));
+          const cx2 = x1 + t2 * sdx, cy2 = y1 + t2 * sdy;
+          const nx = b.x - cx2, ny = b.y - cy2;
+          const nd = Math.sqrt(nx * nx + ny * ny) || 1;
+          b.x = cx2 + (nx / nd) * blockR;
+          b.y = cy2 + (ny / nd) * blockR;
+          const dot = b.vx * (nx / nd) + b.vy * (ny / nd);
+          if (dot < 0) { b.vx -= dot * (nx / nd); b.vy -= dot * (ny / nd); }
+        }
+      }
       b.canonAngle = Math.atan2(cam.y - b.y, cam.x - b.x);
       // Burst fire: bullets spread 18° apart, count scales with wave
       b.shootTimer += dt;
@@ -1336,6 +1514,7 @@ function loop(now) {
     // Player bullet vs boss
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
+      if (b.ice) continue; // ice turret bullets don't affect boss
       for (let bi = bosses.length - 1; bi >= 0; bi--) {
         const boss = bosses[bi];
         if (b.pierce && b.hit && b.hit.has(boss)) continue;
@@ -1407,6 +1586,19 @@ function loop(now) {
         }
       }
       if (treeBlocked) continue;
+      // Barrier wall check
+      let barrierBlocked = false;
+      for (let si = 0; si < sprouts.length; si++) {
+        const s = sprouts[si];
+        if (s.kind !== 'barrier') continue;
+        const { x1, y1, x2, y2 } = barrierEndpoints(s);
+        if (distToSeg(b.x, b.y, x1, y1, x2, y2) < b.r + BARRIER_THICKNESS) {
+          eBullets.splice(i, 1);
+          explode(b.x, b.y, '#a0622a', 5);
+          barrierBlocked = true; break;
+        }
+      }
+      if (barrierBlocked) continue;
     }
 
     if (invincible > 0) invincible -= dtf;
@@ -1434,10 +1626,7 @@ function loop(now) {
       }
       const dx = p.x - cam.x, dy = p.y - cam.y;
       if (dx * dx + dy * dy < (p.r + 24) ** 2) {
-        if (p.type === 'heart') {
-          if (life < 5) { life++; spawnFloat(p.x, p.y, '+1 Heart', p.color); feed('PICKUP! +1 HEART (' + life + '/5)'); }
-          else { spawnFloat(p.x, p.y, 'Heart FULL', p.color); feed('PICKUP! HEART — ALREADY FULL'); }
-        } else if (p.type === 'pts') {
+        if (p.type === 'pts') {
           const bonus = 100 * getWave() * (Math.floor(Math.random() * 10) + 1);
           score += bonus; totalPoints += bonus;
           spawnFloat(p.x, p.y, '+' + bonus.toLocaleString() + ' Points', p.color);
@@ -1504,6 +1693,7 @@ function loop(now) {
     spiceTimer += dt;
     if (spiceTimer >= SPICE_INTERVAL) { spiceTimer = 0; spawnSpice(); }
 
+
     // Spice collection
     for (let i = spices.length - 1; i >= 0; i--) {
       const s = spices[i];
@@ -1540,6 +1730,40 @@ function loop(now) {
             spawnFloat(cam.x, cam.y, 'ICE TURRET!', '#88ddff');
             feed('ICE TURRET [I] PLACED — next cost: ' + nextCost);
           }
+        }
+      }
+    }
+
+    // Extra letter pickup collision
+    for (let i = extraPickups.length - 1; i >= 0; i--) {
+      const p = extraPickups[i];
+      p.bob += 0.04 * dtf;
+      const dx = p.x - cam.x, dy = p.y - cam.y;
+      if (dx * dx + dy * dy < (p.r + 24) ** 2) {
+        extraCollected[p.letter] = true;
+        extraPickups.splice(i, 1);
+        explode(p.x, p.y, '#ffcc00', 20);
+        spawnFloat(p.x, p.y, p.letter.toUpperCase() + '!', '#ffcc00');
+        feed('EXTRA [' + p.letter.toUpperCase() + '] — ' + EXTRA_LETTERS.filter(l => extraCollected[l]).length + '/5');
+        updateExtraBoard();
+        if (EXTRA_LETTERS.every(l => extraCollected[l])) {
+          let killed = 0;
+          for (let ei = enemies.length - 1; ei >= 0; ei--) {
+            explode(enemies[ei].x, enemies[ei].y, enemies[ei].color, 30);
+            score += 100 * getWave(); totalPoints += 100 * getWave();
+            enemies.splice(ei, 1); killed++;
+          }
+          for (let bi = bosses.length - 1; bi >= 0; bi--) {
+            explode(bosses[bi].x, bosses[bi].y, '#ff0055', 60);
+            score += 500 * getWave(); totalPoints += 500 * getWave();
+            bosses.splice(bi, 1); killed++;
+          }
+          if (life < 6) life++;
+          shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: ARENA_R, life: 1.0 });
+          feed('✦ E·X·T·R·A! ' + killed + ' ENEMIES DESTROYED + 1 HEART ✦');
+          spawnFloat(cam.x, cam.y, 'E·X·T·R·A!', '#ffcc00');
+          EXTRA_LETTERS.forEach(l => extraCollected[l] = false);
+          updateExtraBoard();
         }
       }
     }
@@ -1589,7 +1813,7 @@ function loop(now) {
         continue;
       }
       t.shootTimer += dt;
-      if (t.shootTimer >= 700 && enemies.length > 0) {
+      if (t.shootTimer >= 840 && enemies.length > 0) {
         t.shootTimer = 0;
         let nearestE = null, nearestD = Infinity;
         enemies.forEach(e => {
@@ -1623,6 +1847,17 @@ function loop(now) {
         }
         continue;
       }
+      if (s.kind === 'barrier') {
+        s.barrierTimer -= dtf;
+        if (s.barrierTimer <= 0) {
+          explode(s.x, s.y, '#a0622a', 20);
+          spawnFloat(s.x, s.y, s.isBarrier ? 'Barrier gone' : 'Sprout gone', '#a0622a');
+          feed(s.isBarrier ? 'BARRIER WALL EXPIRED' : 'BARRIER SPROUT EXPIRED');
+          sprouts.splice(i, 1);
+          continue;
+        }
+        if (s.isBarrier) continue;
+      }
       if (s.isMiasma) {
         s.miasmaTimer -= dtf;
         if (s.miasmaTimer <= 0) {
@@ -1655,7 +1890,7 @@ function loop(now) {
       }
       if (s.touchCooldown > 0) s.touchCooldown -= dtf;
       const sdx = s.x - cam.x, sdy = s.y - cam.y;
-      const growColor = s.kind === 'miasma' ? '#bb44ee' : '#33cc55';
+      const growColor = s.kind === 'miasma' ? '#bb44ee' : s.kind === 'barrier' ? '#a0622a' : '#33cc55';
       if (sdx * sdx + sdy * sdy < (s.r + 24) ** 2 && s.touchCooldown <= 0) {
         s.level++;
         s.touchCooldown = 120;
@@ -1666,6 +1901,10 @@ function loop(now) {
             s.miasmaTimer = MIASMA_LIFE;
             spawnFloat(s.x, s.y, 'MIASMA!', '#bb44ee');
             feed('SPROUT → MIASMA TREE! DAMAGE AURA ACTIVE');
+          } else if (s.kind === 'barrier') {
+            s.isBarrier = true;
+            spawnFloat(s.x, s.y, 'BARRIER!', '#a0622a');
+            feed('SPROUT → BARRIER WALL! Blocks bullets & movement');
           } else {
             s.isTree = true;
             s.treeTimer = 9.6 * 60;
@@ -1673,7 +1912,7 @@ function loop(now) {
             feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
           }
         } else {
-          const treeName = s.kind === 'miasma' ? 'MiasmaTree' : 'AegisTree';
+          const treeName = s.kind === 'miasma' ? 'MiasmaTree' : s.kind === 'barrier' ? 'Barrier' : 'AegisTree';
           spawnFloat(s.x, s.y, treeName + ' ' + s.level + '/' + SPROUT_MAX_LEVEL, growColor);
           feed('SPROUT GROWS ' + s.level + '/' + SPROUT_MAX_LEVEL + ' — touch again in 2s!');
         }
@@ -1736,6 +1975,7 @@ function loop(now) {
   });
 
   pickups.forEach(p => drawPickup(p));
+  extraPickups.forEach(p => drawExtraPickup(p));
   spices.forEach(s => drawSpice(s));
   mines.forEach(m => drawMine(m));
   iceTurrets.forEach(t => drawIceTurret(t));
@@ -1873,4 +2113,5 @@ function loop(now) {
 }
 
 initDomCache();
+updateExtraBoard();
 requestAnimationFrame(loop);

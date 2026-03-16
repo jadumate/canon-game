@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>CANNON BLASTER</title>
-  <link rel="stylesheet" href="style.css?v=89">
+  <link rel="stylesheet" href="style.css?v=95">
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2904828185240062" crossorigin="anonymous"></script>
 </head>
 <body>
@@ -35,6 +35,12 @@
     </div>
     <div id="hud-div"></div>
     <div id="life-bar">
+      <div class="heart golden dead" id="h5">
+        <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg5)" stroke="#cc9900" stroke-width="1"/>
+          <defs><radialGradient id="hg5" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#fff0a0"/><stop offset="100%" stop-color="#e6a800"/></radialGradient></defs>
+        </svg>
+      </div>
       <div class="heart" id="h0">
         <svg viewBox="0 0 32 30" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M16 27S3 19 3 10.5A7.5 7.5 0 0 1 16 6a7.5 7.5 0 0 1 13 4.5C29 19 16 27 16 27z" fill="url(#hg0)" stroke="#cc0000" stroke-width="1"/>
@@ -79,10 +85,19 @@
     </div>
   </div>
 
+  <!-- EXTRA BOARD (top-left, beside menu) -->
+  <div id="extra-board">
+    <span class="extra-letter" id="el-e">E</span>
+    <span class="extra-letter" id="el-x">X</span>
+    <span class="extra-letter" id="el-t">T</span>
+    <span class="extra-letter" id="el-r">R</span>
+    <span class="extra-letter" id="el-a">A</span>
+  </div>
+
   <!-- SITE TITLE (top-center) -->
   <div id="site-title">
     <div id="site-name">EmptyBoard.com</div>
-    <div id="site-build">build no. 89</div>
+    <div id="site-build">build no. 95</div>
   </div>
 
   <!-- WAVE (top-center) -->
@@ -172,6 +187,6 @@
     </div>
   </div>
 
-  <script src="game.js?v=89"></script>
+  <script src="game.js?v=95"></script>
 </body>
 </html>

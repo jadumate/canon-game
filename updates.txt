@@ -1,3 +1,79 @@
+## [2026-03-16] Barrier Lifetime, EXTRA Wave Fix (builds 94–95)
+
+### Barrier — 60s Lifetime from Spawn (build 94)
+- `barrierTimer` now initialized to `BARRIER_WALL_LIFE` (3600 frames = 60s) at **spawn**, not only when activated
+- Timer counts down while the sprout is still growing — barrier disappears if never fully grown within 60s
+- When promoted to full wall, timer continues from remaining time (not reset)
+- Full wall expiry message: "Barrier gone"; growing sprout expiry: "Sprout gone"
+
+### EXTRA — No Spawn on Wave 1 (build 95)
+- EXTRA letters now only drop from **wave 2+** (`waveNow > 1 && waveNow > lastExtraWave`)
+- Prevents a letter from appearing immediately at game start
+
+---
+
+## [2026-03-16] EXTRA Polish, Golden Heart & Barrier Tree (builds 90–93)
+
+### EXTRA Letter System — Spawn Rework (build 93)
+- Letters no longer spawn on a timer; one random letter drops each time the **wave increases**
+- Letter is picked from all 5 (E/X/T/R/A) — duplicates and already-collected letters can appear
+- `lastExtraWave` tracks the last wave a letter was dropped; resets on restart/continue
+
+### EXTRA Letter System — Visual (build 91)
+- Pickup shape changed from circle to **rounded square**
+- Gold linear gradient fill (`#fff9cc` → `#ffcc00` → `#ff8800`), amber border, pulsing square ring outline
+
+### Heart System Rework (build 92)
+- **Heart pickup removed** from the pickup pool — hearts are now earned exclusively via EXTRA
+- EXTRA completion grants **+1 golden heart** (6th slot), even if already at 5
+- 6th heart slot (`h5`) added to HUD: gold gradient (`#fff0a0` → `#e6a800`), gold stroke, gold drop-shadow when active
+- Golden heart positioned at the **leftmost** slot in the gauge
+- `_dom.hearts` array and `updateUI` loop extended to handle 6 hearts
+
+### Barrier Tree (build 90)
+- New sprout kind (33% spawn chance) — line wall with random fixed angle
+- Grows longer each level (`level × 35`px growing → 200px full wall, ~10s lifetime)
+- Blocks all **enemy bullets** and **all cannon movement** (player, enemies, bosses) at every level including while growing
+- Brown color palette: `#6b3d1a` growing stroke, `#a0622a` wall, `#f0d0a0` bright core
+- Max active sprouts raised **5 → 8**
+
+### Ice Turret Nerf (build 90)
+- Fire interval **700ms → 840ms** (−20% fire rate)
+- Ice bullets no longer interact with the boss
+
+### Misc (build 90)
+- `publish.sh` renamed to `deploy.sh`
+
+---
+
+## [2026-03-16] Barrier Tree, EXTRA System & Ice Turret Nerf (build 90)
+
+### New Tree Type — Barrier Wall
+- Sprouts now spawn as one of three kinds: **Aegis** (33%), **Miasma** (33%), **Barrier** (33%)
+- Barrier sprout spawns with a random fixed angle; drawn as a brown line that grows longer each level (`level × 35`px)
+- Touch 5× to activate the full **Barrier Wall** (200px long, ~10s lifetime)
+- Blocks **all enemy bullets** on contact (line-segment distance check)
+- Blocks movement of **all entities** — enemies, bosses, and the player — perpendicular pushback at every level, even while still growing
+- Visual: brown glow (`#8b5a2b`), main wall `#a0622a`, warm cream core `#f0d0a0`, brown timer bar
+- Max active sprouts raised: **5 → 8**
+
+### New System — EXTRA Letters
+- One of the letters **E · X · T · R · A** randomly drops on the ground every 22s
+- Only uncollected letters spawn; no duplicates on the ground at once
+- Player touches a letter → it lights up gold on the **EXTRA board** (top-left, beside the menu button)
+- Collect all 5 → all enemies and bosses explode (with kill bonuses), player gains **+1 heart**, arena-wide shockwave
+- Letters reset to dark after completion and can be collected again
+- Board shows dim gray letters until lit; lit letters glow gold with `box-shadow`
+
+### Balance — Ice Turret
+- Fire interval increased **700ms → 840ms** (−20% fire rate)
+- Ice turret bullets no longer affect the **boss** (skip boss collision entirely)
+
+### Misc
+- `publish.sh` renamed to `deploy.sh`
+
+---
+
 ## [2026-03-14] Boss Scaling, Miasma Tree & Minimee Spice Product (builds 87–89)
 
 ### Boss — Burst Bullet Scaling (build 89)
