@@ -2049,8 +2049,8 @@ function loop(now) {
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
     const isSeizing = e.elite || e.darkElite;
-    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.08) * 4 : 0;
-    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.11) * 4 : 0;
+    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.027) * 4 : 0;
+    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.037) * 4 : 0;
     const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
     const sx = _sx + seizeX, sy = _sy + seizeY;
 
