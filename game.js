@@ -54,7 +54,6 @@ let spice = 0;
 let spiceProductType = 'a'; // future: 'a','b','c'...
 let spiceProductCount = 0;
 function getSpiceCost() { return Math.floor(50 * Math.pow(1.1, spiceProductCount)); }
-let adUsed = false;
 let mouseX = 0, mouseY = 0;
 
 // ── MOBILE JOYSTICKS ──
@@ -113,8 +112,10 @@ function getBD() { return upg.dmg; }
 
 const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
+let firstPickupDone = false;
 let lastExtraWave = 0;
 const EXTRA_LETTERS = ['e', 'x', 't', 'r', 'a'];
+const EXTRA_COLORS  = { e: '#ff3333', x: '#ff8800', t: '#ffee00', r: '#33cc55', a: '#aa44ff' };
 const extraCollected = { e: false, x: false, t: false, r: false, a: false };
 let lastBossWave = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
@@ -198,10 +199,10 @@ function enemyFire(e) {
 
 // ── PICKUPS ──
 const PICKUP_DEFS = [
-  { type: 'move',  color: '#ff3344', label: 'MOV', name: 'Move Speed' },
+  { type: 'move',  color: '#ff3344', label: 'SPD', name: 'Move Speed' },
   { type: 'size',  color: '#3399ff', label: 'SIZ', name: 'Blt.Size'   },
   { type: 'speed', color: '#ff8800', label: 'VEL', name: 'Blt.Speed'  },
-  { type: 'rate',  color: '#aa44ff', label: 'RTE', name: 'Fire Rate'  },
+  { type: 'rate',  color: '#aa44ff', label: 'RLD', name: 'Fire Rate'  },
   { type: 'dmg',   color: '#aaaaaa', label: 'PWR', name: 'Blt.Power'  },
   { type: 'pts',   color: '#22cc44', label: 'PTS', name: 'Points'     },
   { type: 'pierce',  color: '#111111', label: 'PRC', name: 'Pierce'   },
@@ -225,13 +226,19 @@ function spawnPickup() {
   let py = cam.y + Math.sin(a) * d;
   const pdist = Math.sqrt(px * px + py * py);
   if (pdist > ARENA_R - 80) { px *= (ARENA_R - 80) / pdist; py *= (ARENA_R - 80) / pdist; }
-  const pool = [...PICKUP_DEFS];
-  const upgDefs = PICKUP_DEFS.filter(d => upg.hasOwnProperty(d.type));
-  if (upgDefs.length > 0) {
-    const lowest = upgDefs.reduce((a, b) => upg[a.type] <= upg[b.type] ? a : b);
-    pool.push(lowest);
+  let def;
+  if (!firstPickupDone) {
+    firstPickupDone = true;
+    def = PICKUP_DEFS.find(d => d.type === 'move');
+  } else {
+    const pool = [...PICKUP_DEFS];
+    const upgDefs = PICKUP_DEFS.filter(d => upg.hasOwnProperty(d.type));
+    if (upgDefs.length > 0) {
+      const lowest = upgDefs.reduce((a, b) => upg[a.type] <= upg[b.type] ? a : b);
+      pool.push(lowest);
+    }
+    def = pool[Math.floor(Math.random() * pool.length)];
   }
-  const def = pool[Math.floor(Math.random() * pool.length)];
   pickups.push({ x: px, y: py, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 0, ...def });
 }
 
@@ -256,7 +263,7 @@ function spawnBoss(wave) {
 }
 
 function spawnSprout() {
-  if (sprouts.length >= 8) return;
+  if (sprouts.length >= 10) return;
   const a = Math.random() * Math.PI * 2;
   const d = 180 + Math.random() * 320;
   let sx = cam.x + Math.cos(a) * d;
@@ -300,28 +307,29 @@ function updateExtraBoard() {
 
 function drawExtraPickup(p) {
   const { sx, sy } = wToS(p.x, p.y + Math.sin(p.bob) * 5);
+  const col = EXTRA_COLORS[p.letter];
   ctx.save();
   const pulse = Math.sin(p.bob * 2) * 0.5 + 0.5;
   const s = p.r * 2; // side length
   // outer pulse ring (square)
   ctx.globalAlpha = 0.3 + pulse * 0.25;
-  ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = 1.5;
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
   const os = s * (1.5 + pulse * 0.35);
   ctx.strokeRect(sx - os / 2, sy - os / 2, os, os);
   // filled square
   ctx.globalAlpha = 0.92;
   if (!lowSpec) {
-    ctx.shadowColor = '#ffcc00'; ctx.shadowBlur = 14;
+    ctx.shadowColor = col; ctx.shadowBlur = 14;
     const g = ctx.createLinearGradient(sx - p.r, sy - p.r, sx + p.r, sy + p.r);
-    g.addColorStop(0, '#fff9cc'); g.addColorStop(0.5, '#ffcc00'); g.addColorStop(1, '#ff8800');
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.5, col); g.addColorStop(1, col);
     ctx.fillStyle = g;
   } else {
-    ctx.fillStyle = '#ffcc00';
+    ctx.fillStyle = col;
   }
   ctx.beginPath(); ctx.roundRect(sx - p.r, sy - p.r, s, s, 3); ctx.fill();
   // border
   if (!lowSpec) { ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,0.4)'; }
-  ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.5; ctx.globalAlpha = 1;
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 1;
   ctx.beginPath(); ctx.roundRect(sx - p.r, sy - p.r, s, s, 3); ctx.stroke();
   // letter
   ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.6)';
@@ -909,10 +917,10 @@ function tickFPS(now) {
 }
 
 const UPG_STATS = [
-  { key: 'move',  color: '#ff3344', label: 'MOV' },
+  { key: 'move',  color: '#ff3344', label: 'SPD' },
   { key: 'size',  color: '#3399ff', label: 'SIZ' },
   { key: 'speed', color: '#ff8800', label: 'VEL' },
-  { key: 'rate',  color: '#aa44ff', label: 'RTE' },
+  { key: 'rate',  color: '#aa44ff', label: 'RLD' },
   { key: 'dmg',    color: '#aaaaaa', label: 'PWR' },
   { key: 'pierce', color: '#111111', label: 'PRC' },
   { key: 'arrow',  color: '#00ddff', label: 'ARW' },
@@ -925,7 +933,7 @@ function initDomCache() {
   _dom.scoreVal  = document.getElementById('score-val');
   _dom.upgStatus = document.getElementById('upg-status');
   _dom.waveVal   = document.getElementById('wave-val');
-  _dom.hearts    = Array.from({ length: 6 }, (_, i) => document.getElementById('h' + i));
+  _dom.hearts    = ['h1','h2','h3','h4','h5','h6','h7'].map(id => document.getElementById(id));
   _dom.spiceVal  = document.getElementById('spice-val');
   _dom.spiceFill = document.getElementById('spice-fill');
   _dom.spiceCap  = document.getElementById('spice-cap');
@@ -957,7 +965,7 @@ function updateUI() {
   }
   if (life !== _uiLife) {
     _uiLife = life;
-    for (let i = 0; i < 6; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
+    for (let i = 0; i < 7; i++) _dom.hearts[i].classList.toggle('dead', i >= life);
   }
   const cost = getSpiceCost();
   if (spice !== _uiSpice || cost !== _uiSpiceCost) {
@@ -974,8 +982,6 @@ function updateUI() {
   }
 }
 
-let adCountdownInterval = null;
-
 function triggerGameOver() {
   gameActive = false;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
@@ -985,88 +991,11 @@ function triggerGameOver() {
   document.getElementById('lb-status').textContent = '';
   document.getElementById('lb-submit-btn').disabled = false;
   document.getElementById('lb-name').value = localStorage.getItem('cannonPlayerName') || '';
-  const continueBtn = document.getElementById('continue-ad-btn');
-  continueBtn.style.display = adUsed ? 'none' : '';
-  continueBtn.disabled = false;
   document.getElementById('msg-overlay').classList.add('show');
   document.getElementById('msg-overlay').scrollTop = 0;
   fetchLeaderboard();
 }
 
-function showAdOverlay() {
-  document.getElementById('continue-ad-btn').disabled = true;
-  document.getElementById('ad-overlay').classList.add('show');
-
-  // Recreate <ins> element so AdSense reloads the ad each time
-  const container = document.getElementById('ad-container');
-  container.innerHTML = '<div id="ad-fallback">Ad loading...</div>';
-  const ins = document.createElement('ins');
-  ins.className = 'adsbygoogle';
-  ins.style.cssText = 'display:block;text-align:center;min-height:250px;width:100%;';
-  ins.dataset.adClient = 'ca-pub-2904828185240062';
-  ins.dataset.adSlot = '4131080299';
-  ins.dataset.adFormat = 'autorelaxed';
-  container.insertBefore(ins, container.firstChild);
-  try { (adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
-
-  // 5-second countdown
-  let t = 5;
-  const timerEl = document.getElementById('ad-timer');
-  const btn = document.getElementById('ad-continue-btn');
-  const countdownText = document.getElementById('ad-countdown-text');
-  btn.disabled = true;
-  timerEl.textContent = t;
-  countdownText.style.display = '';
-
-  if (adCountdownInterval) clearInterval(adCountdownInterval);
-  adCountdownInterval = setInterval(() => {
-    t--;
-    timerEl.textContent = t;
-    if (t <= 0) {
-      clearInterval(adCountdownInterval);
-      adCountdownInterval = null;
-      btn.disabled = false;
-      countdownText.style.display = 'none';
-    }
-  }, 1000);
-}
-
-function continueFromAd() {
-  if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
-  adUsed = true;
-
-  // Reduce all upgrade levels and spice product count by 2/3
-  for (const k of Object.keys(upg)) {
-    upg[k] = Math.max(1, Math.floor(upg[k] * 2 / 3));
-  }
-  spiceProductCount = Math.floor(spiceProductCount * 2 / 3);
-
-  // Halve elapsed time → halves wave
-  elapsedSec = Math.floor(elapsedSec / 2);
-  lastWave = getWave();
-  bosses.length = 0;
-  lastBossWave = Math.floor(getWave() / 5) * 5;
-
-  // Halve score
-  score = Math.floor(score / 2);
-  totalPoints = Math.floor(totalPoints / 2);
-
-  // Restore 3 hearts on continue
-  life = 3;
-
-  // Clear active objects
-  bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  pickups.length = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0;
-  spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
-  spice = 0; spiceProductCount = 0;
-  extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; sproutTimer = 0;
-  playerMoveX = 0; playerMoveY = 0;
-
-  gameActive = true;
-  document.getElementById('ad-overlay').classList.remove('show');
-  document.getElementById('msg-overlay').classList.remove('show');
-}
 
 function submitLeaderboard() {
   const name = document.getElementById('lb-name').value.trim();
@@ -1140,19 +1069,16 @@ function escHtml(s) {
 function restartGame() {
   score = 0; totalPoints = 0; life = 5; gameActive = true;
   spice = 0; spiceProductCount = 0;
-  adUsed = false;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
-  pickups.length = 0; pickupTimer = 0; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
+  pickups.length = 0; pickupTimer = 0; firstPickupDone = false; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1; lastExtraWave = 0;
   bosses.length = 0; lastBossWave = 0;
-  if (adCountdownInterval) { clearInterval(adCountdownInterval); adCountdownInterval = null; }
-  document.getElementById('ad-overlay').classList.remove('show');
   document.getElementById('msg-overlay').classList.remove('show');
 }
 
@@ -1741,9 +1667,10 @@ function loop(now) {
       const dx = p.x - cam.x, dy = p.y - cam.y;
       if (dx * dx + dy * dy < (p.r + 24) ** 2) {
         extraCollected[p.letter] = true;
+        const ecol = EXTRA_COLORS[p.letter];
         extraPickups.splice(i, 1);
-        explode(p.x, p.y, '#ffcc00', 20);
-        spawnFloat(p.x, p.y, p.letter.toUpperCase() + '!', '#ffcc00');
+        explode(p.x, p.y, ecol, 20);
+        spawnFloat(p.x, p.y, p.letter.toUpperCase() + '!', ecol);
         feed('EXTRA [' + p.letter.toUpperCase() + '] — ' + EXTRA_LETTERS.filter(l => extraCollected[l]).length + '/5');
         updateExtraBoard();
         if (EXTRA_LETTERS.every(l => extraCollected[l])) {
@@ -1758,7 +1685,7 @@ function loop(now) {
             score += 500 * getWave(); totalPoints += 500 * getWave();
             bosses.splice(bi, 1); killed++;
           }
-          if (life < 6) life++;
+          if (life < 7) life++;
           shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: ARENA_R, life: 1.0 });
           feed('✦ E·X·T·R·A! ' + killed + ' ENEMIES DESTROYED + 1 HEART ✦');
           spawnFloat(cam.x, cam.y, 'E·X·T·R·A!', '#ffcc00');

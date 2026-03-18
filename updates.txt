@@ -1,3 +1,57 @@
+## [2026-03-17] Rainbow EXTRA, Ad Removal & Score Decay (builds 101–102)
+
+### EXTRA Letter — Rainbow Colors (builds 101–102)
+- Each EXTRA board letter now glows in its own color when lit: E=red, X=orange, T=yellow, R=green, A=violet
+- Ground pickup orbs match the same per-letter color: ring, shadow, gradient fill, and border all use the letter's color
+- `EXTRA_COLORS = { e:'#ff3333', x:'#ff8800', t:'#ffee00', r:'#33cc55', a:'#aa44ff' }` map added
+- Collection explosion particles and float text also use the letter's color (was always gold `#ffcc00`)
+
+### Ad System Removed (build 101)
+- Removed Google AdSense `<script>` tag from `index.html`
+- Removed "CONTINUE AFTER AD" button and entire `#ad-overlay` div
+- Removed `showAdOverlay()`, `continueFromAd()`, `adUsed`, `adCountdownInterval` from `game.js`
+- Removed all ad-related CSS (`#ad-overlay`, `#ad-card`, `#ad-container`, `#continue-ad-btn`, etc.)
+
+### Leaderboard — Daily Score Decay (build 101)
+- All leaderboard scores decrease by **−1% per day** (floor, minimum 1)
+- Triggered server-side on every leaderboard GET request
+- `meta` table added to SQLite DB; `last_process_date` checked — decay runs at most once per calendar day
+- Game over screen shows notice: `⚠ Leaderboard scores decay −1% every day`
+
+---
+
+## [2026-03-16] Heart Gauge Redesign (builds 99–100)
+
+### Heart Gauge — 7 Slots, Two Golden on Left (build 100)
+- Total heart slots expanded **6 → 7**
+- Layout left→right: `♥(gold·h7) ♥(gold·h6) | ♥h5 ♥h4 ♥h3 ♥h2 ♥h1`
+- Two golden slots (h6, h7) sit on the far left — dark at game start
+- Each EXTRA completion lights up one golden slot (h6 first, then h7)
+- h5 promoted to a regular red heart slot (was the only golden slot before)
+- h0 removed; max life raised **6 → 7**; EXTRA cap updated accordingly
+- `_dom.hearts` array now maps `[h1, h2, h3, h4, h5, h6, h7]` (h1 = first to die, rightmost)
+
+### Heart Gauge — Order Fix (build 99)
+- Golden heart slot moved from leftmost to rightmost position
+
+---
+
+## [2026-03-16] Label Renames, First Pickup & Sprout Limit (builds 96–98)
+
+### Sprout/Tree Max Limit Raised (build 96)
+- Max combined sprouts + trees raised **8 → 10** (+25%)
+- Barrier walls now appear more frequently on the field
+
+### First Pickup Always Move Speed (build 97)
+- The very first pickup each game is guaranteed to be **Move Speed (SPD)**
+- `firstPickupDone` flag resets on restart/continue; subsequent pickups use normal random pool
+
+### Label Renames (builds 97–98)
+- Move Speed label: `MOV` → `SPD` (pickup orb + upgrade status panel)
+- Fire Rate label: `RTE` → `RLD` (reload — pickup orb + upgrade status panel)
+
+---
+
 ## [2026-03-16] Barrier Lifetime, EXTRA Wave Fix (builds 94–95)
 
 ### Barrier — 60s Lifetime from Spawn (build 94)

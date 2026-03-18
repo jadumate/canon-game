@@ -35,10 +35,25 @@ try {
         nonce      TEXT    PRIMARY KEY,
         used_at    INTEGER NOT NULL
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS meta (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    )');
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Server error']);
     exit;
+}
+
+// ── Daily score decay: -1% per day, triggered on leaderboard fetch ──
+function maybe_decay_scores(PDO $db): void {
+    $today = date('Y-m-d');
+    $stmt  = $db->prepare('SELECT value FROM meta WHERE key = ?');
+    $stmt->execute(['last_process_date']);
+    $last  = $stmt->fetchColumn();
+    if ($last === $today) return;
+    $db->exec('UPDATE scores SET score = MAX(1, CAST(score * 0.99 AS INTEGER))');
+    $db->prepare('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)')->execute(['last_process_date', $today]);
 }
 
 // ── GET: issue a one-time submit token, or return top 20 scores ──
@@ -51,6 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         echo json_encode(['ok' => true, 'nonce' => $nonce, 'token' => $token]);
         exit;
     }
+    maybe_decay_scores($db);
     $stmt = $db->query('SELECT name, score, wave, created_at FROM scores ORDER BY score DESC LIMIT 20');
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode(['ok' => true, 'scores' => $rows]);
