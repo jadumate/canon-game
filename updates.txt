@@ -1,4 +1,62 @@
-## [2026-03-18] Elite Enemy, Split Shot, Fever Dash (builds 103–105)
+## [2026-03-18] Beginner Support & QoL (builds 111–112)
+
+### Pause Game (build 112)
+- Press **SPACE** to pause/resume during gameplay
+- Dark overlay with `PAUSED` text and resume hint displayed while paused
+- All game logic halted; UI remains visible; resets on restart/continue
+
+### Elite Enemy Drop Change (build 111)
+- Elite and Dark Skull enemies now drop a **spice gem** on death instead of a pickup
+- Spice amount: `random(1 ~ wave+10)` (same as regular spice spawns)
+- Kill feed updated: `+ PICKUP DROP` → `+ SPICE DROP`
+
+### Dark Skull Mist — Radius Reduction (build 111)
+- Mist radius reduced **−10%** (432 → 389 world units)
+
+### Pickup & Spice Limits (build 113)
+- `MAX_PICKUPS` raised 7 → 10
+- `MAX_SPICES` raised 6 → 10
+- Elite spice drops now respect the `MAX_SPICES` cap
+
+### Beginner Wave Extension (build 111)
+- Wave 4+: if **10 or more enemies** are on screen at the wave boundary, the next wave is delayed
+- Extension = **5s × (wave − 3)** (wave 4: +5s, wave 5: +10s, wave 6: +15s, …)
+- Kill feed shows `⏳ WAVE EXTENDED +Xs — clear enemies!` when triggered
+
+---
+
+## [2026-03-18] Balancing & Bug Fixes (builds 108–110)
+
+### Fever Mode — Visual Overhaul (build 108)
+- **Screen-edge fire vignette**: orange glow burns around entire screen border during fever
+- **Full-screen orange tint**: subtle warm overlay covers the screen while active
+- **`🔥 FEVER Xs` countdown**: text displayed top-center; grows larger and pulses red in final 3s warning phase
+- Larger pulsing aura behind player (radius 56 → 90)
+- Player character brightened during fever: `hsl(22,100%,68%)` → `hsl(22,100%,75%)`
+
+### Fever Dash [D] — Duplicate Activation Fix (build 108)
+- Activating [D] while fever is already running now **extends the timer +10s** instead of refunding
+- Previously caused an infinite freeze loop (`while` refund cycle); fixed
+
+### MINIMEE [N] — Infinite Loop Fix (build 108)
+- Fixed freeze when MINIMEE was at max (3/3) and spice kept accumulating: added `break` to exit the while loop
+
+### Elite Enemy — Balancing (builds 108–110)
+- Spawn rate reduced: **5% → 3%** (white skull), **~5% → ~3%** (dark skull, threshold 10% → 6%)
+- HP formula changed: `baseHp * 3` → `5 + baseHp * 3`
+- Elite enemies now **clamped to arena boundary** on spawn (can no longer root outside `ARENA_R`)
+- Seize tremor slowed **−20%** (0.027→0.0216, 0.037→0.0296) after previous −67% (was 0.08/0.11)
+
+### Dark Skull — Mist Tuning (build 110)
+- Mist radius reduced **−10%** (480 → 432 world units)
+- Mist opacity brightened **+10%** (core 1.0→0.90, mid 0.97→0.87, edge 0.70→0.63)
+
+### Minor
+- Leaderboard decay notice: "−1% every day" → "1% every day"
+
+---
+
+## [2026-03-18] Elite Enemy, Split Shot, Fever Dash (builds 103–107)
 
 ### Dark Skull Elite Variant (build 106)
 - Second elite type: **5% chance** (separate roll after white skull check, ~5% additional)
@@ -24,8 +82,6 @@
 - Elite enemies skip the awakened mechanic
 
 ### Split Shot [SPL] — New Pickup (build 104)
-
-### Split Shot [SPL] — New Pickup (build 104)
 - New pink pickup (`#ff66bb`), label `SPL`, name "Split Shot"
 - Activation rate: **5% at level 1, +2% per level** (formula: `(5 + (upg.split-1)*2) / 100`)
 - When a split-flagged bullet hits an enemy or boss, it spawns **3 child bullets** spreading at −60°, 0°, +60° from the impact direction
@@ -35,8 +91,6 @@
 - Appears in upgrade status panel (SPL row, pink)
 
 ### Fever Dash [D] — Spice Product (build 103)
-
-### Fever Dash [D] — Spice Product
 - New spice product type `d` — Fever Dash, symbol `[D]`
 - On activation: player enters **FEVER MODE** for 10 seconds (`FEVER_DURATION = 600` frames)
 - Fever mode effects:

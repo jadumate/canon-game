@@ -49,7 +49,7 @@ canvas.focus();
 
 const cam = { x: 0, y: 0 };
 const ARENA_R = 2200;
-let score = 0, totalPoints = 0, life = 5, gameActive = true;
+let score = 0, totalPoints = 0, life = 5, gameActive = true, paused = false;
 let spice = 0;
 let spiceProductType = 'a'; // future: 'a','b','c'...
 let spiceProductCount = 0;
@@ -72,7 +72,7 @@ let invincible = 0, hitFlash = 0;
 let feverActive = false, feverTimer = 0;
 
 // ── DIFFICULTY ──
-let elapsedSec = 0, lastWave = 1;
+let elapsedSec = 0, lastWave = 1, waveFreeze = 0;
 
 function getWave()              { return Math.floor(elapsedSec / 30) + 1; }
 function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20), 20); }
@@ -94,6 +94,7 @@ window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
     e.preventDefault();
   }
+  if (e.code === 'Space' && gameActive) { paused = !paused; }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
     const order = ['a', 'b', 'c', 'd'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
@@ -121,13 +122,13 @@ const extraCollected = { e: false, x: false, t: false, r: false, a: false };
 let lastBossWave = 0;
 const SPROUT_INTERVAL = 18000; // ms between sprout spawns
 const SPICE_INTERVAL = 10000;  // ms between spice spawns
-const MAX_SPICES = 6;
+const MAX_SPICES = 10;
 const MINE_R = 16;
 const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
 const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
 const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
-const DARK_MIST_R     = 220;   // dark skull mist radius (world units)
+const DARK_MIST_R     = 389;   // dark skull mist radius (world units)
 const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
@@ -171,10 +172,14 @@ function spawnEnemy() {
   const hue = 180 + Math.random() * 80;
   const baseHp = getEnemyHP();
   const roll = Math.random();
-  const elite     = roll < 0.05;
-  const darkElite = !elite && roll < 0.10;
-  const hp = (elite || darkElite) ? baseHp * 3 : baseHp;
-  const ex = cam.x + Math.cos(a) * d, ey = cam.y + Math.sin(a) * d;
+  const elite     = roll < 0.03;
+  const darkElite = !elite && roll < 0.06;
+  const hp = (elite || darkElite) ? 5 + baseHp * 3 : baseHp;
+  let ex = cam.x + Math.cos(a) * d, ey = cam.y + Math.sin(a) * d;
+  if (elite || darkElite) {
+    const edist = Math.sqrt(ex * ex + ey * ey);
+    if (edist > ARENA_R - 80) { ex *= (ARENA_R - 80) / edist; ey *= (ARENA_R - 80) / edist; }
+  }
   enemies.push({
     x: ex, y: ey,
     vx: 0, vy: 0, r: (elite || darkElite) ? 26 : 22,
@@ -228,15 +233,16 @@ const PICKUP_DEFS = [
 const UPG_MAX = { size: 10 }; // per-type overrides; default is 10
 const PICKUP_R = 12;
 const PICKUP_INTERVAL = 14000;
-const MAX_PICKUPS = 7;
+const MAX_PICKUPS = 10;
 
 function spawnFloat(wx, wy, text, color) {
   floatTexts.push({ x: wx, y: wy, text, color, life: 1.0 });
 }
 
 function dropElitePickup(ex, ey) {
-  const def = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
-  pickups.push({ x: ex, y: ey, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 1, ...def });
+  if (spices.length >= MAX_SPICES) return;
+  const amount = Math.floor(Math.random() * (getWave() + 10)) + 1;
+  spices.push({ x: ex, y: ey, r: 10, bob: Math.random() * Math.PI * 2, amount });
 }
 
 function spawnPickup() {
@@ -1101,7 +1107,7 @@ function restartGame() {
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
-  elapsedSec = 0; lastWave = 1; lastExtraWave = 0;
+  elapsedSec = 0; lastWave = 1; lastExtraWave = 0; waveFreeze = 0; paused = false;
   bosses.length = 0; lastBossWave = 0;
   document.getElementById('msg-overlay').classList.remove('show');
 }
@@ -1186,8 +1192,38 @@ function loop(now) {
   ctx.fillStyle = '#f5f6fa';
   ctx.fillRect(0, 0, W, H);
 
+  if (gameActive && paused) {
+    // Draw pause overlay (screen-space, after background clear)
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.font = 'bold 36px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    if (!lowSpec) { ctx.shadowColor = '#00ccff'; ctx.shadowBlur = 24; }
+    ctx.fillText('PAUSED', W / 2, H / 2);
+    ctx.font = '14px Orbitron, monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur = 0;
+    ctx.fillText('PRESS SPACE TO RESUME', W / 2, H / 2 + 44);
+    ctx.restore();
+    updateUI();
+    return;
+  }
   if (gameActive) {
-    elapsedSec += dt / 1000;
+    if (waveFreeze > 0) {
+      waveFreeze = Math.max(0, waveFreeze - dt / 1000);
+    } else {
+      const nextBoundary = lastWave * 30;
+      const newElapsed = elapsedSec + dt / 1000;
+      if (newElapsed >= nextBoundary && lastWave > 3 && enemies.length >= 10) {
+        waveFreeze = 5 * (lastWave - 3);
+        elapsedSec = nextBoundary - 0.001;
+        feed('⏳ WAVE EXTENDED +' + waveFreeze + 's — clear enemies!');
+      } else {
+        elapsedSec = newElapsed;
+      }
+    }
 
     // Auto score: +wave pts per second
     scoreTimer += dt;
@@ -1459,7 +1495,7 @@ function loop(now) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
             score += bonus; totalPoints += bonus;
-            if (e.elite || e.darkElite) { dropElitePickup(e.x, e.y); feed((e.darkElite ? '☠ DARK SKULL DOWN! +' : '☠ ELITE DOWN! +') + bonus + ' + PICKUP DROP'); }
+            if (e.elite || e.darkElite) { dropElitePickup(e.x, e.y); feed((e.darkElite ? '☠ DARK SKULL DOWN! +' : '☠ ELITE DOWN! +') + bonus + ' + SPICE DROP'); }
             else feed('+' + bonus + ' ENEMY DESTROYED');
             enemies.splice(j, 1);
           } else {
@@ -1742,6 +1778,7 @@ function loop(now) {
             } else {
               spice += cost; spiceProductCount--;
               feed('MINIMEE — MAX COMPANIONS (3/3)');
+              break;
             }
           } else if (spiceProductType === 'c') {
             iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
@@ -1753,8 +1790,9 @@ function loop(now) {
               spawnFloat(cam.x, cam.y, 'FEVER!', '#ff6600');
               feed('FEVER DASH [D] — 10s FEVER MODE! Destroy by touch, bullet immune!');
             } else {
-              spice += cost; spiceProductCount--;
-              feed('FEVER DASH — already active!');
+              feverTimer += FEVER_DURATION;
+              spawnFloat(cam.x, cam.y, 'FEVER +10s!', '#ff6600');
+              feed('FEVER DASH — extended!');
             }
           }
         }
@@ -2049,8 +2087,8 @@ function loop(now) {
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
     const isSeizing = e.elite || e.darkElite;
-    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.027) * 4 : 0;
-    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.037) * 4 : 0;
+    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.0216) * 4 : 0;
+    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.0296) * 4 : 0;
     const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
     const sx = _sx + seizeX, sy = _sy + seizeY;
 
@@ -2156,10 +2194,11 @@ function loop(now) {
     const pulse  = 0.72 + 0.12 * Math.sin(dm.bob * 1.3);
     ctx.save();
     ctx.globalAlpha = fadeIn * pulse;
-    const mg = ctx.createRadialGradient(sx, sy, r * 0.1, sx, sy, r);
-    mg.addColorStop(0,   'rgba(20,0,40,0.88)');
-    mg.addColorStop(0.55,'rgba(15,0,30,0.60)');
-    mg.addColorStop(1,   'rgba(5,0,12,0)');
+    const mg = ctx.createRadialGradient(sx, sy, r * 0.05, sx, sy, r);
+    mg.addColorStop(0,   'rgba(0,0,0,0.90)');
+    mg.addColorStop(0.65,'rgba(0,0,0,0.87)');
+    mg.addColorStop(0.88,'rgba(0,0,0,0.63)');
+    mg.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.fillStyle = mg;
     if (!lowSpec) { ctx.shadowColor = '#6600aa'; ctx.shadowBlur = 32; }
     ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
@@ -2193,25 +2232,55 @@ function loop(now) {
   const _invBlink   = !feverActive && invincible > 0 && Math.floor(invincible / 5) % 2 === 0;
   if (!_feverBlink && !_invBlink) {
     if (feverActive) {
-      const auraAlpha = feverTimer < FEVER_WARN_AT ? 0.35 + 0.35 * Math.abs(Math.sin(feverTimer * 0.25)) : 0.55;
+      const warn = feverTimer < FEVER_WARN_AT;
+      const pulse = Math.abs(Math.sin(feverTimer * 0.25));
+      // Large pulsing aura behind player
       ctx.save();
-      if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 28; }
-      ctx.globalAlpha = auraAlpha;
-      const auraG = ctx.createRadialGradient(W / 2, H / 2, 18, W / 2, H / 2, 56);
-      auraG.addColorStop(0, 'rgba(255,140,0,0.8)');
-      auraG.addColorStop(0.5, 'rgba(255,60,0,0.35)');
+      if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 40; }
+      ctx.globalAlpha = warn ? 0.4 + 0.4 * pulse : 0.65;
+      const auraG = ctx.createRadialGradient(W / 2, H / 2, 18, W / 2, H / 2, 90);
+      auraG.addColorStop(0, 'rgba(255,180,0,0.9)');
+      auraG.addColorStop(0.5, 'rgba(255,80,0,0.5)');
       auraG.addColorStop(1, 'rgba(255,30,0,0)');
       ctx.fillStyle = auraG;
-      ctx.beginPath(); ctx.arc(W / 2, H / 2, 56, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, 90, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     }
-    drawChar(W / 2, H / 2, cannonAngle, true, feverActive ? 'hsl(22,100%,68%)' : 'hsl(21,100%,55%)', 24);
+    drawChar(W / 2, H / 2, cannonAngle, true, feverActive ? 'hsl(22,100%,75%)' : 'hsl(21,100%,55%)', 24);
   }
 
   ctx.restore(); // end zoom transform
 
   drawVignette();
   drawCrosshair();
+
+  // Fever full-screen effects (screen-space, after zoom restore)
+  if (feverActive) {
+    const warn = feverTimer < FEVER_WARN_AT;
+    const pulse = Math.abs(Math.sin(feverTimer * 0.18));
+    // Screen-edge fire vignette
+    ctx.save();
+    const edgeG = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.8);
+    edgeG.addColorStop(0, 'rgba(255,80,0,0)');
+    edgeG.addColorStop(1, warn ? `rgba(255,40,0,${0.28 + 0.28 * pulse})` : 'rgba(255,80,0,0.22)');
+    ctx.fillStyle = edgeG;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    // Screen-wide orange tint
+    ctx.save();
+    ctx.fillStyle = warn ? `rgba(255,80,0,${0.08 + 0.10 * pulse})` : 'rgba(255,100,0,0.07)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    // FEVER timer text top-center
+    const secLeft = Math.ceil(feverTimer / 60);
+    ctx.save();
+    ctx.font = `bold ${warn ? 22 : 18}px Orbitron, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 16; }
+    ctx.fillStyle = warn ? `rgba(255,${Math.floor(80 + 80 * pulse)},0,1)` : '#ff9900';
+    ctx.fillText('🔥 FEVER ' + secLeft + 's', W / 2, 56);
+    ctx.restore();
+  }
 
   if (hitFlash > 0) {
     ctx.fillStyle = `rgba(255,0,0,${hitFlash * 0.28})`;
