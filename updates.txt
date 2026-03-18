@@ -1,5 +1,18 @@
 ## [2026-03-18] Elite Enemy, Split Shot, Fever Dash (builds 103–105)
 
+### Dark Skull Elite Variant (build 106)
+- Second elite type: **5% chance** (separate roll after white skull check, ~5% additional)
+- `darkElite: true` flag — same seize/root/3×HP/guaranteed-pickup as white skull
+- Visual: very dark body (`#1a0033`), deep violet halo (`#7700cc` / purple glow), purple `☠` skull overlay
+- On spawn: float text `☠ DARK SKULL` in violet
+- **Dark Mist**: activates **3 seconds after spawn** (`DARK_MIST_R = 220` world units)
+  - Deep dark radial gradient (near-black core fading to transparent) drawn over the world
+  - **Any enemy inside the mist is hidden** — skipped entirely from the draw loop
+  - The dark skull itself remains visible (exempt from hiding logic)
+  - Mist fades in over 1.2s for a creeping appearance; pulses gently while active
+- Kill feed: `☠ DARK SKULL DOWN! +N + PICKUP DROP`
+- Also fixes a bug: `continue` inside `enemies.forEach` (SyntaxError) corrected to `return`
+
 ### Elite Enemy — Skull Variant (build 105)
 - **5% chance** any enemy spawns as an elite on `spawnEnemy()`
 - Elite properties: **3× HP**, **26px radius** (vs 22), stays rooted at spawn position

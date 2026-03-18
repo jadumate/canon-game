@@ -127,6 +127,8 @@ const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
 const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
 const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
+const DARK_MIST_R     = 220;   // dark skull mist radius (world units)
+const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
@@ -168,12 +170,14 @@ function spawnEnemy() {
   const d = 420 + Math.random() * 220;
   const hue = 180 + Math.random() * 80;
   const baseHp = getEnemyHP();
-  const elite = Math.random() < 0.05;
-  const hp = elite ? baseHp * 3 : baseHp;
+  const roll = Math.random();
+  const elite     = roll < 0.05;
+  const darkElite = !elite && roll < 0.10;
+  const hp = (elite || darkElite) ? baseHp * 3 : baseHp;
   const ex = cam.x + Math.cos(a) * d, ey = cam.y + Math.sin(a) * d;
   enemies.push({
     x: ex, y: ey,
-    vx: 0, vy: 0, r: elite ? 26 : 22,
+    vx: 0, vy: 0, r: (elite || darkElite) ? 26 : 22,
     hp, maxHp: hp,
     shootTimer: 0,
     spawnDelay: 1000,
@@ -186,9 +190,10 @@ function spawnEnemy() {
     color: `hsl(${hue},80%,50%)`,
     hue,
     frozen: false, frozenTimer: 0,
-    elite, spawnX: ex, spawnY: ey,
+    elite, darkElite, spawnX: ex, spawnY: ey,
   });
-  if (elite) spawnFloat(ex, ey, '☠ ELITE', '#ffeeaa');
+  if (elite)     spawnFloat(ex, ey, '☠ ELITE', '#ffeeaa');
+  if (darkElite) spawnFloat(ex, ey, '☠ DARK SKULL', '#aa44ff');
 }
 
 function enemyFire(e) {
@@ -1264,20 +1269,20 @@ function loop(now) {
           const bonus = 100 * getWave();
           explode(e.x, e.y, '#88ddff', 30);
           score += bonus; totalPoints += bonus;
-          if (e.elite) dropElitePickup(e.x, e.y);
+          if (e.elite || e.darkElite) dropElitePickup(e.x, e.y);
           feed('FROZEN SOLID! +' + bonus);
           enemies.splice(enemies.indexOf(e), 1);
         }
         return;
       }
-      if (e.elite) {
-        // Elite stays at spawn — seize in place, aim and shoot only
+      if (e.elite || e.darkElite) {
+        // Elite/DarkElite stays at spawn — seize in place, aim and shoot only
         e.x = e.spawnX; e.y = e.spawnY; e.vx = 0; e.vy = 0;
         e.bob += 0.03 * dtf;
         e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
         if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
         else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
-        continue;
+        return;
       }
       const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
       const dx = cam.x - e.x, dy = cam.y - e.y;
@@ -1454,7 +1459,7 @@ function loop(now) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
             score += bonus; totalPoints += bonus;
-            if (e.elite) { dropElitePickup(e.x, e.y); feed('☠ ELITE DOWN! +' + bonus + ' + PICKUP DROP'); }
+            if (e.elite || e.darkElite) { dropElitePickup(e.x, e.y); feed((e.darkElite ? '☠ DARK SKULL DOWN! +' : '☠ ELITE DOWN! +') + bonus + ' + PICKUP DROP'); }
             else feed('+' + bonus + ' ENEMY DESTROYED');
             enemies.splice(j, 1);
           } else {
@@ -1598,7 +1603,7 @@ function loop(now) {
             const killBonus = 100 * getWave();
             explode(fe.x, fe.y, '#ff6600', 35);
             score += killBonus; totalPoints += killBonus;
-            if (fe.elite) dropElitePickup(fe.x, fe.y);
+            if (fe.elite || fe.darkElite) dropElitePickup(fe.x, fe.y);
             spawnFloat(fe.x, fe.y, '+' + killBonus, '#ff9900');
             enemies.splice(fi, 1);
           }
@@ -1775,7 +1780,7 @@ function loop(now) {
             const xe = enemies[ei];
             explode(xe.x, xe.y, xe.color, 30);
             score += 100 * getWave(); totalPoints += 100 * getWave();
-            if (xe.elite) dropElitePickup(xe.x, xe.y);
+            if (xe.elite || xe.darkElite) dropElitePickup(xe.x, xe.y);
             enemies.splice(ei, 1); killed++;
           }
           for (let bi = bosses.length - 1; bi >= 0; bi--) {
@@ -1813,7 +1818,7 @@ function loop(now) {
             if (bdx * bdx + bdy * bdy < BLAST_R * BLAST_R) {
               explode(be.x, be.y, be.color, 25);
               const killBonus = 100 * getWave(); score += killBonus; totalPoints += killBonus;
-              if (be.elite) dropElitePickup(be.x, be.y);
+              if (be.elite || be.darkElite) dropElitePickup(be.x, be.y);
               enemies.splice(bi, 1);
               killed++;
             }
@@ -2038,18 +2043,41 @@ function loop(now) {
     ctx.restore();
   });
 
+  // Collect active dark mist sources for enemy hiding logic
+  const darkMists = enemies.filter(e => e.darkElite && e.aliveTime >= DARK_MIST_DELAY);
+
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
-    const seizeX = e.elite ? Math.sin(e.aliveTime * 0.08) * 4 : 0;
-    const seizeY = e.elite ? Math.cos(e.aliveTime * 0.11) * 4 : 0;
+    const isSeizing = e.elite || e.darkElite;
+    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.08) * 4 : 0;
+    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.11) * 4 : 0;
     const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
     const sx = _sx + seizeX, sy = _sy + seizeY;
+
+    // Hide non-dark-skull enemies inside any active mist
+    if (!e.darkElite && !e.elite) {
+      const inMist = darkMists.some(dm => {
+        const mdx = e.x - dm.x, mdy = e.y - dm.y;
+        return mdx * mdx + mdy * mdy < DARK_MIST_R * DARK_MIST_R;
+      });
+      if (inMist) return; // hidden — skip draw
+    }
+
     if (e.elite) {
       ctx.save();
       const pulse = 0.45 + 0.2 * Math.sin(e.bob * 2);
       ctx.globalAlpha = pulse;
       if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 22; }
       ctx.strokeStyle = '#ffeeaa'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    if (e.darkElite) {
+      ctx.save();
+      const pulse = 0.5 + 0.2 * Math.sin(e.bob * 2);
+      ctx.globalAlpha = pulse;
+      if (!lowSpec) { ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 26; }
+      ctx.strokeStyle = '#7700cc'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
@@ -2074,13 +2102,13 @@ function loop(now) {
       ctx.stroke();
       ctx.restore();
     }
-    drawChar(sx, sy, e.canonAngle, false, e.elite ? '#dddddd' : e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
-    if (e.elite) {
+    drawChar(sx, sy, e.canonAngle, false, e.darkElite ? '#1a0033' : e.elite ? '#dddddd' : e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
+    if (e.elite || e.darkElite) {
       ctx.save();
       ctx.font = `bold ${Math.floor(e.r * 1.05)}px serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 8; }
-      ctx.fillStyle = '#ffffff';
+      if (!lowSpec) { ctx.shadowColor = e.darkElite ? '#aa00ff' : '#ffeeaa'; ctx.shadowBlur = 8; }
+      ctx.fillStyle = e.darkElite ? '#cc66ff' : '#ffffff';
       ctx.fillText('☠', sx, sy - 1);
       ctx.restore();
     }
@@ -2116,6 +2144,25 @@ function loop(now) {
     ctx.fillRect(sx - 24, sy - 38, 48 * pct, 6);
     ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 1;
     ctx.strokeRect(sx - 24, sy - 38, 48, 6);
+    ctx.restore();
+  });
+
+  // Dark mist overlay pass
+  darkMists.forEach(dm => {
+    const { sx, sy } = wToS(dm.x, dm.y);
+    const r = DARK_MIST_R * zoom;
+    const elapsed = dm.aliveTime - DARK_MIST_DELAY;
+    const fadeIn = Math.min(1, elapsed / 1200);
+    const pulse  = 0.72 + 0.12 * Math.sin(dm.bob * 1.3);
+    ctx.save();
+    ctx.globalAlpha = fadeIn * pulse;
+    const mg = ctx.createRadialGradient(sx, sy, r * 0.1, sx, sy, r);
+    mg.addColorStop(0,   'rgba(20,0,40,0.88)');
+    mg.addColorStop(0.55,'rgba(15,0,30,0.60)');
+    mg.addColorStop(1,   'rgba(5,0,12,0)');
+    ctx.fillStyle = mg;
+    if (!lowSpec) { ctx.shadowColor = '#6600aa'; ctx.shadowBlur = 32; }
+    ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   });
 
