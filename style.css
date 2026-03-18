@@ -260,6 +260,12 @@ canvas {
   background: rgba(212,160,23,0.12);
   text-shadow: 0 0 6px #e8b82066;
 }
+#sprod-d.active {
+  color: #ff6620;
+  border-color: #ff6620;
+  background: rgba(255,102,32,0.12);
+  text-shadow: 0 0 6px #ff662066;
+}
 
 /* ── SITE TITLE (top-center) ── */
 #site-title {

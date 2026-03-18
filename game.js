@@ -69,6 +69,7 @@ function checkMobile() {
 window.addEventListener('resize', checkMobile);
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
+let feverActive = false, feverTimer = 0;
 
 // ── DIFFICULTY ──
 let elapsedSec = 0, lastWave = 1;
@@ -81,7 +82,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -94,7 +95,7 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
   }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
-    const order = ['a', 'b', 'c'];
+    const order = ['a', 'b', 'c', 'd'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
@@ -124,6 +125,8 @@ const MAX_SPICES = 6;
 const MINE_R = 16;
 const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
+const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
+const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
@@ -940,6 +943,7 @@ function initDomCache() {
   _dom.sprodA    = document.getElementById('sprod-a');
   _dom.sprodB    = document.getElementById('sprod-b');
   _dom.sprodC    = document.getElementById('sprod-c');
+  _dom.sprodD    = document.getElementById('sprod-d');
 }
 
 function updateUI() {
@@ -979,6 +983,7 @@ function updateUI() {
     _dom.sprodA.classList.toggle('active', spiceProductType === 'a');
     _dom.sprodB.classList.toggle('active', spiceProductType === 'b');
     _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
+    _dom.sprodD.classList.toggle('active', spiceProductType === 'd');
   }
 }
 
@@ -1075,7 +1080,7 @@ function restartGame() {
   pickups.length = 0; pickupTimer = 0; firstPickupDone = false; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1; lastExtraWave = 0;
   bosses.length = 0; lastBossWave = 0;
@@ -1474,7 +1479,11 @@ function loop(now) {
       const b = eBullets[i];
       b.x += b.vx * dtf; b.y += b.vy * dtf; b.life -= dtf;
       if (b.life <= 0) { eBullets.splice(i, 1); continue; }
-      if (invincible <= 0) {
+      if (feverActive) {
+        const fdx = b.x - cam.x, fdy = b.y - cam.y;
+        if (fdx * fdx + fdy * fdy < (b.r + 24) ** 2) { eBullets.splice(i, 1); continue; }
+      }
+      if (invincible <= 0 && !feverActive) {
         const dx = b.x - cam.x, dy = b.y - cam.y;
         if (dx * dx + dy * dy < (b.r + 24) ** 2) {
           eBullets.splice(i, 1);
@@ -1528,6 +1537,28 @@ function loop(now) {
     }
 
     if (invincible > 0) invincible -= dtf;
+
+    // Fever mode: timer + contact-kill sweep
+    if (feverActive) {
+      feverTimer -= dtf;
+      if (feverTimer <= 0) {
+        feverActive = false; feverTimer = 0;
+        spawnFloat(cam.x, cam.y, 'FEVER OVER', '#ff6600');
+        feed('FEVER MODE ENDED');
+      } else {
+        for (let fi = enemies.length - 1; fi >= 0; fi--) {
+          const fe = enemies[fi];
+          const fdx = cam.x - fe.x, fdy = cam.y - fe.y;
+          if (fdx * fdx + fdy * fdy < (24 + fe.r) ** 2) {
+            const killBonus = 100 * getWave();
+            explode(fe.x, fe.y, '#ff6600', 35);
+            score += killBonus; totalPoints += killBonus;
+            spawnFloat(fe.x, fe.y, '+' + killBonus, '#ff9900');
+            enemies.splice(fi, 1);
+          }
+        }
+      }
+    }
 
     // Pickup spawning
     pickupTimer += dt;
@@ -1655,6 +1686,15 @@ function loop(now) {
             iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
             spawnFloat(cam.x, cam.y, 'ICE TURRET!', '#88ddff');
             feed('ICE TURRET [I] PLACED — next cost: ' + nextCost);
+          } else if (spiceProductType === 'd') {
+            if (!feverActive) {
+              feverActive = true; feverTimer = FEVER_DURATION;
+              spawnFloat(cam.x, cam.y, 'FEVER!', '#ff6600');
+              feed('FEVER DASH [D] — 10s FEVER MODE! Destroy by touch, bullet immune!');
+            } else {
+              spice += cost; spiceProductCount--;
+              feed('FEVER DASH — already active!');
+            }
           }
         }
       }
@@ -2021,8 +2061,23 @@ function loop(now) {
     ctx.restore();
   });
 
-  if (!(invincible > 0 && Math.floor(invincible / 5) % 2 === 0)) {
-    drawChar(W / 2, H / 2, cannonAngle, true, 'hsl(21,100%,55%)', 24);
+  const _feverBlink = feverActive && feverTimer < FEVER_WARN_AT && Math.floor(feverTimer / 6) % 2 === 0;
+  const _invBlink   = !feverActive && invincible > 0 && Math.floor(invincible / 5) % 2 === 0;
+  if (!_feverBlink && !_invBlink) {
+    if (feverActive) {
+      const auraAlpha = feverTimer < FEVER_WARN_AT ? 0.35 + 0.35 * Math.abs(Math.sin(feverTimer * 0.25)) : 0.55;
+      ctx.save();
+      if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 28; }
+      ctx.globalAlpha = auraAlpha;
+      const auraG = ctx.createRadialGradient(W / 2, H / 2, 18, W / 2, H / 2, 56);
+      auraG.addColorStop(0, 'rgba(255,140,0,0.8)');
+      auraG.addColorStop(0.5, 'rgba(255,60,0,0.35)');
+      auraG.addColorStop(1, 'rgba(255,30,0,0)');
+      ctx.fillStyle = auraG;
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, 56, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+    drawChar(W / 2, H / 2, cannonAngle, true, feverActive ? 'hsl(22,100%,68%)' : 'hsl(21,100%,55%)', 24);
   }
 
   ctx.restore(); // end zoom transform

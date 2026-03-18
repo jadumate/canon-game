@@ -1,3 +1,19 @@
+## [2026-03-18] Fever Dash Spice Product (build 103)
+
+### Fever Dash [D] — Spice Product
+- New spice product type `d` — Fever Dash, symbol `[D]`
+- On activation: player enters **FEVER MODE** for 10 seconds (`FEVER_DURATION = 600` frames)
+- Fever mode effects:
+  - Any enemy that touches the player is instantly destroyed (explosion + score bonus)
+  - All incoming enemy bullets are absorbed on contact — no damage taken
+  - Player character glows with a hot orange radial aura (`#ff6600` shadow + gradient)
+- Warning: final 3 seconds (`FEVER_WARN_AT = 180`), player aura blinks at ~5 Hz to signal mode ending
+- Activating again while already in fever refunds the cost and shows a feed notice
+- HUD: `[M][N][I][D]` selector row — `[D]` button highlights orange when active
+- Key `1`/`E` cycles through all four products
+
+---
+
 ## [2026-03-17] Rainbow EXTRA, Ad Removal & Score Decay (builds 101–102)
 
 ### EXTRA Letter — Rainbow Colors (builds 101–102)
