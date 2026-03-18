@@ -1,4 +1,15 @@
-## [2026-03-18] Fever Dash Spice Product (build 103)
+## [2026-03-18] Split Shot Pickup & Fever Dash (builds 103–104)
+
+### Split Shot [SPL] — New Pickup (build 104)
+- New pink pickup (`#ff66bb`), label `SPL`, name "Split Shot"
+- Activation rate: **5% at level 1, +2% per level** (formula: `(5 + (upg.split-1)*2) / 100`)
+- When a split-flagged bullet hits an enemy or boss, it spawns **3 child bullets** spreading at −60°, 0°, +60° from the impact direction
+- Child bullets (`splitChild: true`) do not split again — no chain recursion
+- Split bullet visually pink (`#ffbbdd` fill / `#ff66bb` outline); child bullets same color
+- `upg.split` starts at 1, caps at 10 (max 23% chance); resets on restart
+- Appears in upgrade status panel (SPL row, pink)
+
+### Fever Dash [D] — Spice Product (build 103)
 
 ### Fever Dash [D] — Spice Product
 - New spice product type `d` — Fever Dash, symbol `[D]`

@@ -103,7 +103,7 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 
-const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1 };
+const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1, split: 1 };
 
 
 function getBR() { return 5 + (upg.size - 1) * 1.5; }
@@ -142,10 +142,13 @@ function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
   const pierceRate = (1 + (upg.pierce - 1) * 2) / 100;
   const arrowRate  = (1 + (upg.arrow  - 1) * 2) / 100;
+  const splitRate  = (5 + (upg.split  - 1) * 2) / 100;
   // Spawn at cannon barrel tip (r=24, tip = 24*(0.38+0.95) ≈ 32) to avoid being hidden behind player body
   const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
   if (Math.random() < pierceRate) {
     bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
+  } else if (Math.random() < splitRate) {
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.1, life: 200, split: true });
   } else if (Math.random() < arrowRate && enemies.length > 0) {
     let nearestE = null, nearestD = Infinity;
     enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
@@ -211,6 +214,7 @@ const PICKUP_DEFS = [
   { type: 'pierce',  color: '#111111', label: 'PRC', name: 'Pierce'   },
   { type: 'bomb',    color: '#ffdd00', label: 'BOM', name: 'Bomb'     },
   { type: 'arrow',   color: '#00ddff', label: 'ARW', name: 'Homing'   },
+  { type: 'split',   color: '#ff66bb', label: 'SPL', name: 'Split Shot' },
 ];
 const UPG_MAX = { size: 10 }; // per-type overrides; default is 10
 const PICKUP_R = 12;
@@ -927,6 +931,7 @@ const UPG_STATS = [
   { key: 'dmg',    color: '#aaaaaa', label: 'PWR' },
   { key: 'pierce', color: '#111111', label: 'PRC' },
   { key: 'arrow',  color: '#00ddff', label: 'ARW' },
+  { key: 'split',  color: '#ff66bb', label: 'SPL' },
 ];
 
 // ── DOM cache ──
@@ -1076,7 +1081,7 @@ function restartGame() {
   spice = 0; spiceProductCount = 0;
   cam.x = 0; cam.y = 0;
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
-  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1;
+  upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1; upg.split = 1;
   pickups.length = 0; pickupTimer = 0; firstPickupDone = false; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
@@ -1436,7 +1441,17 @@ function loop(now) {
             explode(e.x, e.y, e.color, 8);
             score += 20; totalPoints += 20;
           }
-          if (!b.pierce) { bullets.splice(i, 1); hit = true; break; }
+          if (!b.pierce) {
+            if (b.split) {
+              const sa = Math.atan2(b.vy, b.vx);
+              const ss = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+              for (let si = -1; si <= 1; si++) {
+                const ca = sa + si * (Math.PI / 3);
+                bullets.push({ x: b.x, y: b.y, vx: Math.cos(ca) * ss, vy: Math.sin(ca) * ss, r: getBR() * 0.85, life: 140, splitChild: true });
+              }
+            }
+            bullets.splice(i, 1); hit = true; break;
+          }
         }
       }
       if (hit) continue;
@@ -1469,7 +1484,17 @@ function loop(now) {
             spawnFloat(boss.x, boss.y, 'BOSS DOWN!', '#ff0055');
             bosses.splice(bi, 1);
           }
-          if (!b.pierce) { bullets.splice(i, 1); break; }
+          if (!b.pierce) {
+            if (b.split) {
+              const sa = Math.atan2(b.vy, b.vx);
+              const ss = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
+              for (let si = -1; si <= 1; si++) {
+                const ca = sa + si * (Math.PI / 3);
+                bullets.push({ x: b.x, y: b.y, vx: Math.cos(ca) * ss, vy: Math.sin(ca) * ss, r: getBR() * 0.85, life: 140, splitChild: true });
+              }
+            }
+            bullets.splice(i, 1); break;
+          }
         }
       }
     }
@@ -1630,6 +1655,16 @@ function loop(now) {
           } else {
             spawnFloat(p.x, p.y, 'Homing MAX', p.color);
             feed('PICKUP! HOMING — MAX LEVEL');
+          }
+        } else if (p.type === 'split') {
+          if (upg.split < 10) {
+            upg.split++;
+            const rate = 5 + (upg.split - 1) * 2;
+            spawnFloat(p.x, p.y, 'Split ' + rate + '%', p.color);
+            feed('PICKUP! SPLIT SHOT → ' + rate + '% RATE');
+          } else {
+            spawnFloat(p.x, p.y, 'Split MAX', p.color);
+            feed('PICKUP! SPLIT SHOT — MAX LEVEL');
           }
         } else {
           if (upg[p.type] < (UPG_MAX[p.type] ?? 10)) {
@@ -1974,6 +2009,7 @@ function loop(now) {
     if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
     else if (b.ice) drawBullet(sx, sy, b.r, '#aaeeff', '#0066aa');
+    else if (b.split || b.splitChild) drawBullet(sx, sy, b.r, '#ffbbdd', '#ff66bb');
     else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
     ctx.restore();
   });
