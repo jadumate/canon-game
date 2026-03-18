@@ -167,11 +167,13 @@ function spawnEnemy() {
     : Math.random() * Math.PI * 2;
   const d = 420 + Math.random() * 220;
   const hue = 180 + Math.random() * 80;
-  const hp = getEnemyHP();
+  const baseHp = getEnemyHP();
+  const elite = Math.random() < 0.05;
+  const hp = elite ? baseHp * 3 : baseHp;
+  const ex = cam.x + Math.cos(a) * d, ey = cam.y + Math.sin(a) * d;
   enemies.push({
-    x: cam.x + Math.cos(a) * d,
-    y: cam.y + Math.sin(a) * d,
-    vx: 0, vy: 0, r: 22,
+    x: ex, y: ey,
+    vx: 0, vy: 0, r: elite ? 26 : 22,
     hp, maxHp: hp,
     shootTimer: 0,
     spawnDelay: 1000,
@@ -184,7 +186,9 @@ function spawnEnemy() {
     color: `hsl(${hue},80%,50%)`,
     hue,
     frozen: false, frozenTimer: 0,
+    elite, spawnX: ex, spawnY: ey,
   });
+  if (elite) spawnFloat(ex, ey, '☠ ELITE', '#ffeeaa');
 }
 
 function enemyFire(e) {
@@ -223,6 +227,11 @@ const MAX_PICKUPS = 7;
 
 function spawnFloat(wx, wy, text, color) {
   floatTexts.push({ x: wx, y: wy, text, color, life: 1.0 });
+}
+
+function dropElitePickup(ex, ey) {
+  const def = PICKUP_DEFS[Math.floor(Math.random() * PICKUP_DEFS.length)];
+  pickups.push({ x: ex, y: ey, r: PICKUP_R, bob: Math.random() * Math.PI * 2, morphTimer: 0, flash: 1, ...def });
 }
 
 function spawnPickup() {
@@ -1245,7 +1254,7 @@ function loop(now) {
     const espd = getEnemySpeed();
     enemies.forEach(e => {
       e.aliveTime += dt;
-      if (!e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
+      if (!e.elite && !e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
       // Frozen: skip movement and shooting
       if (e.frozen) {
         e.frozenTimer -= dtf;
@@ -1255,10 +1264,20 @@ function loop(now) {
           const bonus = 100 * getWave();
           explode(e.x, e.y, '#88ddff', 30);
           score += bonus; totalPoints += bonus;
+          if (e.elite) dropElitePickup(e.x, e.y);
           feed('FROZEN SOLID! +' + bonus);
           enemies.splice(enemies.indexOf(e), 1);
         }
         return;
+      }
+      if (e.elite) {
+        // Elite stays at spawn — seize in place, aim and shoot only
+        e.x = e.spawnX; e.y = e.spawnY; e.vx = 0; e.vy = 0;
+        e.bob += 0.03 * dtf;
+        e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
+        if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
+        else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
+        continue;
       }
       const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
       const dx = cam.x - e.x, dy = cam.y - e.y;
@@ -1435,7 +1454,8 @@ function loop(now) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
             score += bonus; totalPoints += bonus;
-            feed('+' + bonus + ' ENEMY DESTROYED');
+            if (e.elite) { dropElitePickup(e.x, e.y); feed('☠ ELITE DOWN! +' + bonus + ' + PICKUP DROP'); }
+            else feed('+' + bonus + ' ENEMY DESTROYED');
             enemies.splice(j, 1);
           } else {
             explode(e.x, e.y, e.color, 8);
@@ -1578,6 +1598,7 @@ function loop(now) {
             const killBonus = 100 * getWave();
             explode(fe.x, fe.y, '#ff6600', 35);
             score += killBonus; totalPoints += killBonus;
+            if (fe.elite) dropElitePickup(fe.x, fe.y);
             spawnFloat(fe.x, fe.y, '+' + killBonus, '#ff9900');
             enemies.splice(fi, 1);
           }
@@ -1751,8 +1772,10 @@ function loop(now) {
         if (EXTRA_LETTERS.every(l => extraCollected[l])) {
           let killed = 0;
           for (let ei = enemies.length - 1; ei >= 0; ei--) {
-            explode(enemies[ei].x, enemies[ei].y, enemies[ei].color, 30);
+            const xe = enemies[ei];
+            explode(xe.x, xe.y, xe.color, 30);
             score += 100 * getWave(); totalPoints += 100 * getWave();
+            if (xe.elite) dropElitePickup(xe.x, xe.y);
             enemies.splice(ei, 1); killed++;
           }
           for (let bi = bosses.length - 1; bi >= 0; bi--) {
@@ -1790,6 +1813,7 @@ function loop(now) {
             if (bdx * bdx + bdy * bdy < BLAST_R * BLAST_R) {
               explode(be.x, be.y, be.color, 25);
               const killBonus = 100 * getWave(); score += killBonus; totalPoints += killBonus;
+              if (be.elite) dropElitePickup(be.x, be.y);
               enemies.splice(bi, 1);
               killed++;
             }
@@ -2016,7 +2040,19 @@ function loop(now) {
 
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
-    const { sx, sy } = wToS(e.x, e.y + bob);
+    const seizeX = e.elite ? Math.sin(e.aliveTime * 0.08) * 4 : 0;
+    const seizeY = e.elite ? Math.cos(e.aliveTime * 0.11) * 4 : 0;
+    const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
+    const sx = _sx + seizeX, sy = _sy + seizeY;
+    if (e.elite) {
+      ctx.save();
+      const pulse = 0.45 + 0.2 * Math.sin(e.bob * 2);
+      ctx.globalAlpha = pulse;
+      if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 22; }
+      ctx.strokeStyle = '#ffeeaa'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (e.awakened) {
       ctx.save();
       ctx.translate(sx, sy);
@@ -2038,7 +2074,16 @@ function loop(now) {
       ctx.stroke();
       ctx.restore();
     }
-    drawChar(sx, sy, e.canonAngle, false, e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
+    drawChar(sx, sy, e.canonAngle, false, e.elite ? '#dddddd' : e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
+    if (e.elite) {
+      ctx.save();
+      ctx.font = `bold ${Math.floor(e.r * 1.05)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 8; }
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('☠', sx, sy - 1);
+      ctx.restore();
+    }
     // Frozen overlay
     if (e.frozen) {
       ctx.save();

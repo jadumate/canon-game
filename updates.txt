@@ -1,4 +1,16 @@
-## [2026-03-18] Split Shot Pickup & Fever Dash (builds 103–104)
+## [2026-03-18] Elite Enemy, Split Shot, Fever Dash (builds 103–105)
+
+### Elite Enemy — Skull Variant (build 105)
+- **5% chance** any enemy spawns as an elite on `spawnEnemy()`
+- Elite properties: **3× HP**, **26px radius** (vs 22), stays rooted at spawn position
+- "Seizing" animation: rapid Lissajous tremor (~13–17 Hz offset on screen coords)
+- Visual: silver/white body (`#dddddd`), glowing gold halo ring, `☠` skull overlay
+- On spawn: float text `☠ ELITE` appears
+- **Guaranteed pickup drop** on death — all kill paths covered: bullet, frozen, fever, EXTRA board, mine blast
+- Kill feed: `☠ ELITE DOWN! +N + PICKUP DROP`
+- Elite enemies skip the awakened mechanic
+
+### Split Shot [SPL] — New Pickup (build 104)
 
 ### Split Shot [SPL] — New Pickup (build 104)
 - New pink pickup (`#ff66bb`), label `SPL`, name "Split Shot"
