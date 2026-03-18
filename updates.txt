@@ -15,8 +15,7 @@
 
 ### Pickup & Spice Limits (build 113)
 - `MAX_PICKUPS` raised 7 → 10
-- `MAX_SPICES` raised 6 → 10
-- Elite spice drops now respect the `MAX_SPICES` cap
+- `MAX_SPICES` raised 6 → 10 (timed spawner only; elite/boss drops bypass cap)
 
 ### Beginner Wave Extension (build 111)
 - Wave 4+: if **10 or more enemies** are on screen at the wave boundary, the next wave is delayed

@@ -240,7 +240,6 @@ function spawnFloat(wx, wy, text, color) {
 }
 
 function dropElitePickup(ex, ey) {
-  if (spices.length >= MAX_SPICES) return;
   const amount = Math.floor(Math.random() * (getWave() + 10)) + 1;
   spices.push({ x: ex, y: ey, r: 10, bob: Math.random() * Math.PI * 2, amount });
 }
