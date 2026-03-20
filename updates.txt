@@ -1,3 +1,102 @@
+## [2026-03-20] Balancing & Tuning (builds 127–129)
+
+### Slow Mud — Stacking Effect (build 128)
+- Each mud blob now applies a **stacking slow**: each hit multiplies speed by ×0.8
+- First hit: −20%, second: −36%, third: −49% … capped at **−70%**
+- Each blob can only hit the player **once** (no re-triggering while standing in it)
+- Timer resets to 5s on each new hit; multiplier fully resets when timer expires
+- HUD and feed now show the actual current % (e.g. `⬡ SLOWED −36% 4s`)
+
+### Slow Mud — Lifetime Extended (build 127)
+- Mud blob lifetime: **3s → 7s** (~180 → 420 frames) — blobs linger much longer on the field
+
+### Swarmling — Speed Buff (build 127)
+- Swarmling move speed multiplier: **×0.5 → ×0.6** (+20%)
+
+### Swarm Matron — Spawn Rate (build 129)
+- Swarmling spawn interval: **60 → 50 frames** (1/s → ~1.2/s)
+
+---
+
+## [2026-03-20] Mobile UI Rebuild (build 125)
+
+### Touch-to-Aim replaces Right Joystick
+- **Removed** the AIM joystick entirely from the mobile control strip
+- Aim is now controlled by **tapping or dragging anywhere on the game canvas** — crosshair and cannon follow the touch point instantly
+- Left joystick (MOVE) is unchanged
+- Bottom bar now shows MOVE joystick on the left + subtle `TAP TO AIM` hint on the right
+- Works for both the canvas area and the right half of the control strip
+
+---
+
+## [2026-03-20] New Elite Enemies (builds 123–124)
+
+### Elite: Swarm Matron ♛ (build 123)
+- Spawns wave **15+**; counts toward the 4-elite cap
+- Stays in place like other elites; shoots + **spawns ~1.2 swarmlings/s**
+- Visual: orange body, pulsing orange ring, 3 orbiting dots, `♛` crown symbol
+- **Swarmling** (minion): r=11 (half size), HP=½ base, speed×0.6, fire rate×0.5, small bullet (r=4), orange-tinted
+- Kill: drops spice gem + `♛ SWARM MATRON DOWN!` feed
+
+### Elite: Lethargion ⬡ (build 124)
+- Spawns wave **20+**; counts toward the 4-elite cap
+- Every **~5s** fires **24 slow mud blobs** in all directions (15° gap)
+- Mud persists **~7s**; each blob hits the player once and stacks the slow
+- Player hit by mud: speed reduced (stacks ×0.8 per blob, cap −70%, 5s duration)
+- Brown screen tint + `⬡ SLOWED −X% Xs` countdown while slowed
+- Visual: dark brown body, gold-olive aura with 6 orbiting drip dots, `⬡` hexagon symbol
+- Kill: drops spice gem + `⬡ LETHARGION DOWN!` feed; mud blobs linger after death
+
+---
+
+## [2026-03-20] Drop Strike Tuning (builds 121–122)
+
+### Drop Strike — Blast Radius & Fuse Extended
+- Blast radius: **180 → 240** world units (+33%)
+- Incoming fuse: **~1.7s → ~3s** (100 → 180 frames) — more time to react, bigger spectacle
+
+---
+
+## [2026-03-19] Drop Strike Spice Product (build 120)
+
+### New Spice Product: DROP STRIKE [A]
+- Cycle to **[A]** with `E`/`1` or click the `A` button in the spice bar
+- Activating costs spice and launches a **drop strike at the cursor position**
+- **Phase 1 (~3s)**: incoming astronaut grows from a tiny dot to full size, falling toward the target — fire trail, pulsing warning ring, crosshair, growing ground shadow
+- **Phase 2 (impact)**: 100 fire particles burst outward (red/orange/yellow/white), ring-of-fire at blast edge, shockwave — kills all enemies within radius 240
+- Kill feed: `DROP STRIKE IMPACT! X ENEMIES ELIMINATED`
+
+---
+
+## [2026-03-19] Balancing & Tuning (builds 115–119)
+
+### Elite Spawn Restrictions (build 115)
+- Elites (white/dark skull) no longer spawn before **wave 4**
+- Max **4 elites** on screen at once; no elites spawn while a boss is active
+- Previously could spawn any time from wave 1 with no cap
+
+### Elite Bullet Range (build 115)
+- Elite/dark skull bullet lifetime doubled: **240 → 480 frames** (travel ~2× further before despawning)
+
+### Bullet Size — Base/Scaling Rebalance (build 116)
+- `getBR()` formula: `5 + (size−1)×1.5` → `7 + (size−1)×1.0`
+- Larger base size at level 1; slower growth per upgrade level
+
+### Sprout/Tree Buffs (build 117)
+- Bullet-block radius: **130 → 160** world units (+23%)
+- Miasma damage radius: **130 → 160** world units (+23%)
+- Tree/miasma lifetime: **9.6s → 12.48s** (+30%)
+
+### Ice Turret — Visual Retheme (build 118)
+- Recolored from blue to **neutral grey** (body, barrel, life bar, label)
+- Life bar now uses greyscale gradient instead of blue-to-red hue shift
+
+### Wave Extension — Threshold Raised (build 119)
+- Beginner wave extension now requires **20 enemies** on screen (was 10)
+- Reduces how often the extension triggers in mid-game waves
+
+---
+
 ## [2026-03-18] Beginner Support & QoL (builds 111–112)
 
 ### Pause Game (build 112)

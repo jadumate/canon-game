@@ -59,7 +59,6 @@ let mouseX = 0, mouseY = 0;
 // ── MOBILE JOYSTICKS ──
 const JOY_MAX = 42; // max thumb travel px
 const joyL = { active: false, id: -1, startX: 0, startY: 0, dx: 0, dy: 0 };
-const joyR = { active: false, id: -1, startX: 0, startY: 0 };
 
 function checkMobile() {
   isMobile = window.innerHeight > window.innerWidth;
@@ -70,6 +69,7 @@ window.addEventListener('resize', checkMobile);
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 let feverActive = false, feverTimer = 0;
+let mudSlowTimer = 0, mudSlowMul = 1.0;
 
 // ── DIFFICULTY ──
 let elapsedSec = 0, lastWave = 1, waveFreeze = 0;
@@ -82,7 +82,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'DROP STRIKE' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -96,7 +96,7 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'Space' && gameActive) { paused = !paused; }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
-    const order = ['a', 'b', 'c', 'd'];
+    const order = ['a', 'b', 'c', 'd', 'e'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
@@ -107,12 +107,12 @@ window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clien
 const upg = { size: 1, speed: 1, rate: 1, move: 1, dmg: 1, pierce: 1, arrow: 1, split: 1 };
 
 
-function getBR() { return 5 + (upg.size - 1) * 1.5; }
+function getBR() { return 7 + (upg.size - 1) * 1.0; }
 function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [], dropStrikes = [], slowMuds = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
 let firstPickupDone = false;
 let lastExtraWave = 0;
@@ -131,11 +131,21 @@ const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
 const DARK_MIST_R     = 389;   // dark skull mist radius (world units)
 const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
-const SPROUT_SHIELD_R = 130;   // tree bullet-block radius (world units)
+const DROP_STRIKE_FUSE = 180;   // frames until impact (~3s)
+const DROP_STRIKE_R    = 240;   // blast radius (world units)
+const MATRON_SPAWN_INTERVAL    = 50;  // frames between swarmling spawns (~0.8s)
+const LETHARGION_MUD_INTERVAL  = 300; // frames between mud volleys (~5s)
+const LETHARGION_MUD_LIFE      = 420; // frames mud lasts (~7s)
+const LETHARGION_MUD_SPEED     = 2.5; // world units/frame
+const LETHARGION_MUD_R         = 10;  // mud blob radius
+const LETHARGION_SLOW_DURATION = 300; // frames of slow (~5s)
+const LETHARGION_SLOW_MUL      = 0.8; // ×0.8 per mud blob hit (stacks)
+const LETHARGION_SLOW_MIN      = 0.3; // cap: max ~70% reduction
+const SPROUT_SHIELD_R = 160;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
-const MIASMA_R = 130;          // miasma tree damage radius (world units)
+const MIASMA_R = 160;          // miasma tree damage radius (world units)
 const MIASMA_DMG_INTERVAL = 30; // frames between miasma damage ticks
-const MIASMA_LIFE = 9.6 * 60;  // miasma tree lifetime (frames)
+const MIASMA_LIFE = 12.48 * 60;  // miasma tree lifetime (frames)
 const BARRIER_WALL_LEN = 200;  // full barrier wall length (world units)
 const BARRIER_WALL_LIFE = 3600; // ~60s at 60fps baseline
 const BARRIER_THICKNESS = 8;   // collision half-thickness (world units)
@@ -172,17 +182,26 @@ function spawnEnemy() {
   const hue = 180 + Math.random() * 80;
   const baseHp = getEnemyHP();
   const roll = Math.random();
-  const elite     = roll < 0.03;
-  const darkElite = !elite && roll < 0.06;
-  const hp = (elite || darkElite) ? 5 + baseHp * 3 : baseHp;
+  const wave = getWave();
+  const eliteCount = enemies.filter(e => e.elite || e.darkElite || e.matron || e.lethargion).length;
+  const canSpawnElite      = wave >= 4  && eliteCount < 4 && bosses.length === 0;
+  const canSpawnDarkElite  = wave >= 10 && eliteCount < 4 && bosses.length === 0;
+  const canSpawnMatron     = wave >= 15 && eliteCount < 4 && bosses.length === 0;
+  const canSpawnLethargion = wave >= 20 && eliteCount < 4 && bosses.length === 0;
+  const elite      = canSpawnElite      && roll < 0.03;
+  const darkElite  = canSpawnDarkElite  && !elite && roll < 0.06;
+  const matron     = canSpawnMatron     && !elite && !darkElite && roll < 0.09;
+  const lethargion = canSpawnLethargion && !elite && !darkElite && !matron && roll < 0.12;
+  const isElite = elite || darkElite || matron || lethargion;
+  const hp = isElite ? 5 + baseHp * 3 : baseHp;
   let ex = cam.x + Math.cos(a) * d, ey = cam.y + Math.sin(a) * d;
-  if (elite || darkElite) {
+  if (isElite) {
     const edist = Math.sqrt(ex * ex + ey * ey);
     if (edist > ARENA_R - 80) { ex *= (ARENA_R - 80) / edist; ey *= (ARENA_R - 80) / edist; }
   }
   enemies.push({
     x: ex, y: ey,
-    vx: 0, vy: 0, r: (elite || darkElite) ? 26 : 22,
+    vx: 0, vy: 0, r: isElite ? 26 : 22,
     hp, maxHp: hp,
     shootTimer: 0,
     spawnDelay: 1000,
@@ -192,30 +211,75 @@ function spawnEnemy() {
     shootInterval: getEnemyShootInterval(),
     canonAngle: 0,
     bob: Math.random() * Math.PI * 2,
-    color: `hsl(${hue},80%,50%)`,
-    hue,
+    color: matron ? 'hsl(30,90%,55%)' : lethargion ? 'hsl(45,55%,30%)' : `hsl(${hue},80%,50%)`,
+    hue: matron ? 30 : lethargion ? 45 : hue,
     frozen: false, frozenTimer: 0,
-    elite, darkElite, spawnX: ex, spawnY: ey,
+    elite, darkElite, matron, lethargion, spawnTimer: 0, mudTimer: 0, spawnX: ex, spawnY: ey,
   });
-  if (elite)     spawnFloat(ex, ey, '☠ ELITE', '#ffeeaa');
-  if (darkElite) spawnFloat(ex, ey, '☠ DARK SKULL', '#aa44ff');
+  if (elite)      spawnFloat(ex, ey, '☠ ELITE', '#ffeeaa');
+  if (darkElite)  spawnFloat(ex, ey, '☠ DARK SKULL', '#aa44ff');
+  if (matron)     spawnFloat(ex, ey, '♛ SWARM MATRON', '#ff8800');
+  if (lethargion) spawnFloat(ex, ey, '⬡ LETHARGION', '#b8a000');
 }
 
 function enemyFire(e) {
   const dx = cam.x - e.x, dy = cam.y - e.y;
   const a = Math.atan2(dy, dx);
   const spd = getEnemyBulletSpeed() * (e.awakened ? 1.2 : 1);
-  const br = e.awakened ? 10.5 : 7;
+  const br = e.awakened ? 10.5 : e.minion ? 4 : 7;
   eBullets.push({
     x: e.x + Math.cos(a) * (e.r + 8),
     y: e.y + Math.sin(a) * (e.r + 8),
     vx: Math.cos(a) * spd,
     vy: Math.sin(a) * spd,
-    r: br, life: 240, awakened: e.awakened
+    r: br, life: (e.elite || e.darkElite || e.matron) ? 480 : 240, awakened: e.awakened
   });
   e.canonAngle = a;
 }
 
+function spawnSwarmling(mx, my) {
+  if (enemies.length >= getMaxEnemies()) return;
+  const a = Math.random() * Math.PI * 2;
+  const d = 28 + Math.random() * 20;
+  const sx = mx + Math.cos(a) * d, sy = my + Math.sin(a) * d;
+  const baseHp = getEnemyHP();
+  const hp = Math.max(1, Math.floor(baseHp * 0.5));
+  enemies.push({
+    x: sx, y: sy,
+    vx: 0, vy: 0, r: 11,
+    hp, maxHp: hp,
+    shootTimer: 0,
+    spawnDelay: 500,
+    aliveTime: 0,
+    awakened: false,
+    speedMul: (0.9 + Math.random() * 0.2) * 0.6,
+    shootInterval: getEnemyShootInterval() * 2,
+    canonAngle: 0,
+    bob: Math.random() * Math.PI * 2,
+    color: 'hsl(30,75%,65%)',
+    hue: 30,
+    frozen: false, frozenTimer: 0,
+    elite: false, darkElite: false, matron: false, lethargion: false, minion: true,
+    spawnX: sx, spawnY: sy,
+  });
+}
+
+function spawnMudVolley(mx, my) {
+  const count = Math.round(360 / 15); // 24 directions, 15° gap
+  for (let i = 0; i < count; i++) {
+    const a = (i * 15 * Math.PI / 180);
+    slowMuds.push({
+      x: mx, y: my,
+      vx: Math.cos(a) * LETHARGION_MUD_SPEED,
+      vy: Math.sin(a) * LETHARGION_MUD_SPEED,
+      life: LETHARGION_MUD_LIFE,
+      maxLife: LETHARGION_MUD_LIFE,
+      r: LETHARGION_MUD_R,
+      hit: false,
+    });
+  }
+  spawnFloat(mx, my, 'MUD VOLLEY!', '#b8a000');
+}
 
 // ── PICKUPS ──
 const PICKUP_DEFS = [
@@ -391,19 +455,19 @@ function drawSpice(s) {
 function drawIceTurret(t) {
   const { sx, sy } = wToS(t.x, t.y);
   ctx.save();
-  if (!lowSpec) { ctx.shadowColor = '#00aaff'; ctx.shadowBlur = 12; }
+  if (!lowSpec) { ctx.shadowColor = '#888888'; ctx.shadowBlur = 12; }
   // Base
   ctx.beginPath(); ctx.arc(sx, sy, t.r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a4a6a'; ctx.fill();
-  ctx.strokeStyle = '#44aaff'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = '#444444'; ctx.fill();
+  ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 2.5; ctx.stroke();
   // Inner ring
   ctx.beginPath(); ctx.arc(sx, sy, t.r * 0.58, 0, Math.PI * 2);
-  ctx.fillStyle = '#2266aa'; ctx.fill();
+  ctx.fillStyle = '#666666'; ctx.fill();
   // Barrel
   ctx.save();
   ctx.translate(sx, sy); ctx.rotate(t.angle);
-  if (!lowSpec) { ctx.shadowColor = '#88ddff'; ctx.shadowBlur = 6; }
-  ctx.fillStyle = '#88ccff';
+  if (!lowSpec) { ctx.shadowColor = '#cccccc'; ctx.shadowBlur = 6; }
+  ctx.fillStyle = '#bbbbbb';
   ctx.beginPath(); ctx.roundRect(t.r * 0.3, -4, t.r * 0.95, 8, 2); ctx.fill();
   ctx.restore();
   ctx.shadowBlur = 0;
@@ -411,12 +475,12 @@ function drawIceTurret(t) {
   const lifeFrac = t.life / ICE_TURRET_LIFE;
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.fillRect(sx - 22, sy - t.r - 8, 44, 4);
-  ctx.fillStyle = `hsl(${200 * lifeFrac},80%,60%)`;
+  ctx.fillStyle = `hsl(0,0%,${40 + 40 * lifeFrac}%)`;
   ctx.fillRect(sx - 22, sy - t.r - 8, 44 * lifeFrac, 4);
   // Label
   ctx.font = 'bold 7px Orbitron, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillStyle = '#aaddff';
+  ctx.fillStyle = '#cccccc';
   ctx.fillText('ICE', sx, sy + t.r + 3);
   ctx.restore();
 }
@@ -442,6 +506,99 @@ function drawMine(m) {
   ctx.fillStyle = '#ffaa00';
   ctx.fillText('MINE', sx, sy + m.r + 3);
   ctx.restore();
+}
+
+function drawDropStrike(d) {
+  const { sx, sy } = wToS(d.x, d.y);
+  const t = d.progress / DROP_STRIKE_FUSE; // 0→1
+  const ringR = DROP_STRIKE_R * zoom;
+
+  // Target warning ring — pulses faster as it approaches
+  ctx.save();
+  ctx.globalAlpha = 0.25 + 0.35 * Math.abs(Math.sin(t * Math.PI * 12));
+  ctx.beginPath(); ctx.arc(sx, sy, ringR, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ff4400';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // Crosshair lines at edge of ring
+  ctx.save();
+  ctx.globalAlpha = 0.55 + 0.2 * Math.abs(Math.sin(t * Math.PI * 12));
+  ctx.strokeStyle = '#ff6600';
+  ctx.lineWidth = 1.5;
+  const armLen = ringR * 0.28;
+  [0, Math.PI / 2, Math.PI, Math.PI * 1.5].forEach(a => {
+    const cx = sx + Math.cos(a) * ringR, cy = sy + Math.sin(a) * ringR;
+    ctx.beginPath();
+    ctx.moveTo(cx - Math.cos(a) * armLen, cy - Math.sin(a) * armLen);
+    ctx.lineTo(cx, cy);
+    ctx.stroke();
+  });
+  ctx.restore();
+
+  // Shadow on ground — grows as object approaches
+  ctx.save();
+  ctx.globalAlpha = 0.12 + t * 0.25;
+  ctx.beginPath(); ctx.ellipse(sx, sy, 18 + t * 26, 10 + t * 16, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#000000';
+  ctx.fill();
+  ctx.restore();
+
+  // Falling object — grows from tiny dot to full astronaut size
+  const objR = 3 + t * 17; // 3 → 20
+  const glow = t * 30;
+
+  ctx.save();
+  ctx.translate(sx, sy - objR * 0.3); // slightly above shadow center
+  // Glow
+  if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = glow; }
+  // Suit body (rounded capsule)
+  ctx.beginPath();
+  ctx.roundRect(-objR * 0.38, -objR * 0.7, objR * 0.76, objR * 1.0, objR * 0.2);
+  ctx.fillStyle = `hsl(${30 - t * 20}, 85%, ${80 - t * 25}%)`;
+  ctx.fill();
+  // Helmet (circle on top)
+  ctx.beginPath(); ctx.arc(0, -objR * 0.72, objR * 0.34, 0, Math.PI * 2);
+  ctx.fillStyle = `hsl(${200 - t * 180}, 60%, ${70 - t * 20}%)`;
+  ctx.fill();
+  // Visor glint
+  if (objR > 6) {
+    ctx.beginPath(); ctx.arc(-objR * 0.08, -objR * 0.76, objR * 0.12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fill();
+  }
+  // Arms spread
+  ctx.strokeStyle = `hsl(${30 - t * 20}, 80%, ${75 - t * 20}%)`;
+  ctx.lineWidth = Math.max(1, objR * 0.15);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-objR * 0.38, -objR * 0.4);
+  ctx.lineTo(-objR * 0.8, -objR * 0.05);
+  ctx.moveTo(objR * 0.38, -objR * 0.4);
+  ctx.lineTo(objR * 0.8, -objR * 0.05);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Fire trail — short streak above (in world-up = screen-up direction)
+  if (t > 0.3) {
+    ctx.save();
+    const trailLen = objR * 2.5;
+    const grad = ctx.createLinearGradient(sx, sy - objR, sx, sy - objR - trailLen);
+    grad.addColorStop(0, `rgba(255,120,0,${0.7 * t})`);
+    grad.addColorStop(0.5, `rgba(255,60,0,${0.3 * t})`);
+    grad.addColorStop(1, 'rgba(255,0,0,0)');
+    ctx.beginPath();
+    ctx.moveTo(sx - objR * 0.3, sy - objR);
+    ctx.lineTo(sx + objR * 0.3, sy - objR);
+    ctx.lineTo(sx + objR * 0.15, sy - objR - trailLen);
+    ctx.lineTo(sx - objR * 0.15, sy - objR - trailLen);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawBoss(b) {
@@ -968,6 +1125,7 @@ function initDomCache() {
   _dom.sprodB    = document.getElementById('sprod-b');
   _dom.sprodC    = document.getElementById('sprod-c');
   _dom.sprodD    = document.getElementById('sprod-d');
+  _dom.sprodE    = document.getElementById('sprod-e');
 }
 
 function updateUI() {
@@ -1008,6 +1166,7 @@ function updateUI() {
     _dom.sprodB.classList.toggle('active', spiceProductType === 'b');
     _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
     _dom.sprodD.classList.toggle('active', spiceProductType === 'd');
+    _dom.sprodE.classList.toggle('active', spiceProductType === 'e');
   }
 }
 
@@ -1102,7 +1261,8 @@ function restartGame() {
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1; upg.split = 1;
   pickups.length = 0; pickupTimer = 0; firstPickupDone = false; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
-  spices.length = 0; mines.length = 0; iceTurrets.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; iceTurrets.length = 0; dropStrikes.length = 0; slowMuds.length = 0; spiceTimer = 0;
+  mudSlowTimer = 0; mudSlowMul = 1.0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
@@ -1116,9 +1276,11 @@ function restartGame() {
   checkMobile();
   const panel = document.getElementById('mobile-controls');
   const lThumb = document.getElementById('joy-left-thumb');
-  const rThumb = document.getElementById('joy-right-thumb');
 
   function resetThumb(el) { el.style.transform = 'translate(-50%, -50%)'; }
+
+  let aimTouchId = -1;
+  function applyAim(t) { mouseX = t.clientX; mouseY = t.clientY; }
 
   panel.addEventListener('touchstart', e => {
     e.preventDefault();
@@ -1129,9 +1291,8 @@ function restartGame() {
         joyL.active = true; joyL.id = t.identifier;
         joyL.startX = t.clientX; joyL.startY = t.clientY;
         joyL.dx = 0; joyL.dy = 0;
-      } else if (!isLeft && !joyR.active) {
-        joyR.active = true; joyR.id = t.identifier;
-        joyR.startX = t.clientX; joyR.startY = t.clientY;
+      } else if (!isLeft && aimTouchId === -1) {
+        aimTouchId = t.identifier; applyAim(t);
       }
     }
   }, { passive: false });
@@ -1146,36 +1307,40 @@ function restartGame() {
         if (dist > JOY_MAX) { const s = JOY_MAX / dist; dx *= s; dy *= s; }
         joyL.dx = dx / JOY_MAX; joyL.dy = dy / JOY_MAX;
         lThumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-      } else if (t.identifier === joyR.id) {
-        const dx = t.clientX - joyR.startX;
-        const dy = t.clientY - joyR.startY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 8) {
-          cannonAngle = Math.atan2(dy, dx);
-          const s = dist > JOY_MAX ? JOY_MAX / dist : 1;
-          rThumb.style.transform = `translate(calc(-50% + ${dx * s}px), calc(-50% + ${dy * s}px))`;
-        }
+      } else if (t.identifier === aimTouchId) {
+        applyAim(t);
       }
     }
   }, { passive: false });
 
-  function onEnd(e) {
+  function onPanelEnd(e) {
     for (const t of e.changedTouches) {
-      if (t.identifier === joyL.id) {
-        joyL.active = false; joyL.id = -1; joyL.dx = 0; joyL.dy = 0;
-        resetThumb(lThumb);
-      } else if (t.identifier === joyR.id) {
-        joyR.active = false; joyR.id = -1;
-        resetThumb(rThumb);
-      }
+      if (t.identifier === joyL.id) { joyL.active = false; joyL.id = -1; joyL.dx = 0; joyL.dy = 0; resetThumb(lThumb); }
+      else if (t.identifier === aimTouchId) { aimTouchId = -1; }
     }
   }
-  panel.addEventListener('touchend', onEnd);
-  panel.addEventListener('touchcancel', onEnd);
+  panel.addEventListener('touchend', onPanelEnd);
+  panel.addEventListener('touchcancel', onPanelEnd);
 
-  // Prevent scroll/zoom on canvas touches
-  canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-  canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  // Canvas touch — aim by touching anywhere on the game view
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (aimTouchId === -1) { aimTouchId = t.identifier; }
+      if (t.identifier === aimTouchId) applyAim(t);
+    }
+  }, { passive: false });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === aimTouchId) applyAim(t);
+    }
+  }, { passive: false });
+  function onCanvasEnd(e) {
+    for (const t of e.changedTouches) { if (t.identifier === aimTouchId) aimTouchId = -1; }
+  }
+  canvas.addEventListener('touchend', onCanvasEnd);
+  canvas.addEventListener('touchcancel', onCanvasEnd);
 })();
 
 // ── MAIN LOOP ──
@@ -1215,7 +1380,7 @@ function loop(now) {
     } else {
       const nextBoundary = lastWave * 30;
       const newElapsed = elapsedSec + dt / 1000;
-      if (newElapsed >= nextBoundary && lastWave > 3 && enemies.length >= 10) {
+      if (newElapsed >= nextBoundary && lastWave > 3 && enemies.length >= 20) {
         waveFreeze = 5 * (lastWave - 3);
         elapsedSec = nextBoundary - 0.001;
         feed('⏳ WAVE EXTENDED +' + waveFreeze + 's — clear enemies!');
@@ -1228,8 +1393,31 @@ function loop(now) {
     scoreTimer += dt;
     if (scoreTimer >= 1000) { scoreTimer -= 1000; const passive = getWave(); score += passive; totalPoints += passive; }
 
+    // Mud slow timer — reset mul when fully expired
+    if (mudSlowTimer > 0) { mudSlowTimer -= dtf; }
+    else if (mudSlowMul < 1.0) { mudSlowMul = 1.0; }
+
+    // Slow mud update — move, expire, player collision
+    for (let i = slowMuds.length - 1; i >= 0; i--) {
+      const m = slowMuds[i];
+      m.x += m.vx * dtf; m.y += m.vy * dtf;
+      m.life -= dtf;
+      if (m.life <= 0) { slowMuds.splice(i, 1); continue; }
+      if (!m.hit) {
+        const mdx = cam.x - m.x, mdy = cam.y - m.y;
+        if (mdx * mdx + mdy * mdy < (m.r + 24) ** 2) {
+          m.hit = true;
+          mudSlowMul = Math.max(LETHARGION_SLOW_MIN, mudSlowMul * LETHARGION_SLOW_MUL);
+          mudSlowTimer = LETHARGION_SLOW_DURATION;
+          const pct = Math.round((1 - mudSlowMul) * 100);
+          spawnFloat(cam.x, cam.y, 'SLOWED −' + pct + '%!', '#b8a000');
+          feed('MUD SLOW! −' + pct + '% move speed for 5s');
+        }
+      }
+    }
+
     // Player movement
-    const spd = 3.2 + (upg.move - 1) * 0.8;
+    const spd = (3.2 + (upg.move - 1) * 0.8) * (mudSlowTimer > 0 ? mudSlowMul : 1);
     let mx = 0, my = 0;
     if (joyL.active) {
       mx = joyL.dx * spd; my = joyL.dy * spd;
@@ -1267,7 +1455,7 @@ function loop(now) {
       }
     }
 
-    if (!joyR.active) cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
+    cannonAngle = Math.atan2(mouseY - H / 2, mouseX - W / 2);
 
     // Shooting
     shotTimer += dt;
@@ -1294,7 +1482,7 @@ function loop(now) {
     const espd = getEnemySpeed();
     enemies.forEach(e => {
       e.aliveTime += dt;
-      if (!e.elite && !e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
+      if (!e.elite && !e.darkElite && !e.matron && !e.lethargion && !e.awakened && e.aliveTime >= 60000) { e.awakened = true; spawnFloat(e.x, e.y, 'AWAKENED!', '#ff3300'); }
       // Frozen: skip movement and shooting
       if (e.frozen) {
         e.frozenTimer -= dtf;
@@ -1304,19 +1492,29 @@ function loop(now) {
           const bonus = 100 * getWave();
           explode(e.x, e.y, '#88ddff', 30);
           score += bonus; totalPoints += bonus;
-          if (e.elite || e.darkElite) dropElitePickup(e.x, e.y);
+          if (e.elite || e.darkElite || e.matron || e.lethargion) dropElitePickup(e.x, e.y);
           feed('FROZEN SOLID! +' + bonus);
           enemies.splice(enemies.indexOf(e), 1);
         }
         return;
       }
-      if (e.elite || e.darkElite) {
-        // Elite/DarkElite stays at spawn — seize in place, aim and shoot only
+      if (e.elite || e.darkElite || e.matron || e.lethargion) {
+        // Elite types stay at spawn — seize in place, aim and shoot only
         e.x = e.spawnX; e.y = e.spawnY; e.vx = 0; e.vy = 0;
         e.bob += 0.03 * dtf;
         e.canonAngle = Math.atan2(cam.y - e.y, cam.x - e.x);
         if (e.spawnDelay > 0) { e.spawnDelay -= dt; }
-        else { e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); } }
+        else {
+          e.shootTimer += dt; if (e.shootTimer >= e.shootInterval) { e.shootTimer = 0; enemyFire(e); }
+          if (e.matron) {
+            e.spawnTimer += dtf;
+            if (e.spawnTimer >= MATRON_SPAWN_INTERVAL) { e.spawnTimer = 0; spawnSwarmling(e.x, e.y); }
+          }
+          if (e.lethargion) {
+            e.mudTimer += dtf;
+            if (e.mudTimer >= LETHARGION_MUD_INTERVAL) { e.mudTimer = 0; spawnMudVolley(e.x, e.y); }
+          }
+        }
         return;
       }
       const spdMul = (e.awakened ? 1.7 : 1) * e.speedMul;
@@ -1494,7 +1692,9 @@ function loop(now) {
             const bonus = 100 * getWave();
             explode(e.x, e.y, e.color, 35);
             score += bonus; totalPoints += bonus;
-            if (e.elite || e.darkElite) { dropElitePickup(e.x, e.y); feed((e.darkElite ? '☠ DARK SKULL DOWN! +' : '☠ ELITE DOWN! +') + bonus + ' + SPICE DROP'); }
+            if (e.matron) { dropElitePickup(e.x, e.y); feed('♛ SWARM MATRON DOWN! +' + bonus + ' + SPICE DROP'); }
+            else if (e.lethargion) { dropElitePickup(e.x, e.y); feed('⬡ LETHARGION DOWN! +' + bonus + ' + SPICE DROP'); }
+            else if (e.elite || e.darkElite) { dropElitePickup(e.x, e.y); feed((e.darkElite ? '☠ DARK SKULL DOWN! +' : '☠ ELITE DOWN! +') + bonus + ' + SPICE DROP'); }
             else feed('+' + bonus + ' ENEMY DESTROYED');
             enemies.splice(j, 1);
           } else {
@@ -1638,7 +1838,7 @@ function loop(now) {
             const killBonus = 100 * getWave();
             explode(fe.x, fe.y, '#ff6600', 35);
             score += killBonus; totalPoints += killBonus;
-            if (fe.elite || fe.darkElite) dropElitePickup(fe.x, fe.y);
+            if (fe.elite || fe.darkElite || fe.matron || fe.lethargion) dropElitePickup(fe.x, fe.y);
             spawnFloat(fe.x, fe.y, '+' + killBonus, '#ff9900');
             enemies.splice(fi, 1);
           }
@@ -1793,6 +1993,12 @@ function loop(now) {
               spawnFloat(cam.x, cam.y, 'FEVER +10s!', '#ff6600');
               feed('FEVER DASH — extended!');
             }
+          } else if (spiceProductType === 'e') {
+            const tx = (mouseX - W / 2) / zoom + cam.x;
+            const ty = (mouseY - H / 2) / zoom + cam.y;
+            dropStrikes.push({ x: tx, y: ty, progress: 0 });
+            spawnFloat(tx, ty, 'INCOMING!', '#ff4400');
+            feed('DROP STRIKE [A] — BRACE FOR IMPACT! Next cost: ' + nextCost);
           }
         }
       }
@@ -1817,7 +2023,7 @@ function loop(now) {
             const xe = enemies[ei];
             explode(xe.x, xe.y, xe.color, 30);
             score += 100 * getWave(); totalPoints += 100 * getWave();
-            if (xe.elite || xe.darkElite) dropElitePickup(xe.x, xe.y);
+            if (xe.elite || xe.darkElite || xe.matron || xe.lethargion) dropElitePickup(xe.x, xe.y);
             enemies.splice(ei, 1); killed++;
           }
           for (let bi = bosses.length - 1; bi >= 0; bi--) {
@@ -1832,6 +2038,57 @@ function loop(now) {
           EXTRA_LETTERS.forEach(l => extraCollected[l] = false);
           updateExtraBoard();
         }
+      }
+    }
+
+    // Drop Strike — fuse countdown & impact
+    for (let di = dropStrikes.length - 1; di >= 0; di--) {
+      const d = dropStrikes[di];
+      d.progress += dtf;
+      if (d.progress >= DROP_STRIKE_FUSE) {
+        // Impact — fire particles in all directions
+        const fireColors = ['#ff2200', '#ff5500', '#ff8800', '#ffbb00', '#ffee44', '#ffffff'];
+        for (let i = 0; i < 100; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const speed = 2 + Math.random() * 9;
+          particles.push({
+            x: d.x, y: d.y,
+            vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+            r: 2 + Math.random() * 6,
+            life: 45 + Math.random() * 50,
+            col: fireColors[Math.floor(Math.random() * fireColors.length)]
+          });
+        }
+        // Ring of fire particles at blast edge
+        for (let i = 0; i < 32; i++) {
+          const a = (i / 32) * Math.PI * 2;
+          const speed = 3.5 + Math.random() * 2;
+          particles.push({
+            x: d.x + Math.cos(a) * DROP_STRIKE_R * 0.7,
+            y: d.y + Math.sin(a) * DROP_STRIKE_R * 0.7,
+            vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+            r: 3 + Math.random() * 4,
+            life: 35 + Math.random() * 30,
+            col: fireColors[Math.floor(Math.random() * 3)]
+          });
+        }
+        shockwaves.push({ x: d.x, y: d.y, r: 0, maxR: DROP_STRIKE_R, life: 1.0 });
+        // Kill enemies in radius
+        let killed = 0;
+        for (let ei = enemies.length - 1; ei >= 0; ei--) {
+          const e = enemies[ei];
+          const dx = e.x - d.x, dy = e.y - d.y;
+          if (dx * dx + dy * dy < DROP_STRIKE_R * DROP_STRIKE_R) {
+            explode(e.x, e.y, e.color, 25);
+            const bonus = 100 * getWave(); score += bonus; totalPoints += bonus;
+            if (e.elite || e.darkElite || e.matron || e.lethargion) dropElitePickup(e.x, e.y);
+            enemies.splice(ei, 1);
+            killed++;
+          }
+        }
+        spawnFloat(d.x, d.y, 'IMPACT! ×' + killed, '#ff4400');
+        feed('DROP STRIKE IMPACT! ' + killed + ' ENEMIES ELIMINATED');
+        dropStrikes.splice(di, 1);
       }
     }
 
@@ -1855,7 +2112,7 @@ function loop(now) {
             if (bdx * bdx + bdy * bdy < BLAST_R * BLAST_R) {
               explode(be.x, be.y, be.color, 25);
               const killBonus = 100 * getWave(); score += killBonus; totalPoints += killBonus;
-              if (be.elite || be.darkElite) dropElitePickup(be.x, be.y);
+              if (be.elite || be.darkElite || be.matron || be.lethargion) dropElitePickup(be.x, be.y);
               enemies.splice(bi, 1);
               killed++;
             }
@@ -1975,7 +2232,7 @@ function loop(now) {
             feed('SPROUT → BARRIER WALL! Blocks bullets & movement');
           } else {
             s.isTree = true;
-            s.treeTimer = 9.6 * 60;
+            s.treeTimer = 12.48 * 60;
             spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
             feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
           }
@@ -2047,7 +2304,23 @@ function loop(now) {
   spices.forEach(s => drawSpice(s));
   mines.forEach(m => drawMine(m));
   iceTurrets.forEach(t => drawIceTurret(t));
+  dropStrikes.forEach(d => drawDropStrike(d));
   sprouts.forEach(s => drawSprout(s));
+
+  // Slow muds
+  slowMuds.forEach(m => {
+    const { sx, sy } = wToS(m.x, m.y);
+    const alpha = 0.55 + 0.25 * (m.life / m.maxLife);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if (!lowSpec) { ctx.shadowColor = '#8a7000'; ctx.shadowBlur = 6; }
+    ctx.beginPath(); ctx.arc(sx, sy, m.r * zoom, 0, Math.PI * 2);
+    ctx.fillStyle = '#8a6a00'; ctx.fill();
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.strokeStyle = '#c8b000'; ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  });
 
   floatTexts.forEach(ft => {
     const { sx, sy } = wToS(ft.x, ft.y);
@@ -2085,14 +2358,14 @@ function loop(now) {
 
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
-    const isSeizing = e.elite || e.darkElite;
+    const isSeizing = e.elite || e.darkElite || e.matron || e.lethargion;
     const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.0216) * 4 : 0;
     const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.0296) * 4 : 0;
     const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
     const sx = _sx + seizeX, sy = _sy + seizeY;
 
     // Hide non-dark-skull enemies inside any active mist
-    if (!e.darkElite && !e.elite) {
+    if (!e.darkElite && !e.elite && !e.matron && !e.lethargion) {
       const inMist = darkMists.some(dm => {
         const mdx = e.x - dm.x, mdy = e.y - dm.y;
         return mdx * mdx + mdy * mdy < DARK_MIST_R * DARK_MIST_R;
@@ -2118,6 +2391,36 @@ function loop(now) {
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
+    if (e.matron) {
+      ctx.save();
+      const pulse = 0.4 + 0.25 * Math.abs(Math.sin(e.bob * 1.8));
+      ctx.globalAlpha = pulse;
+      if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 22; }
+      ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
+      // Orbiting dots to hint at spawning
+      for (let oi = 0; oi < 3; oi++) {
+        const oa = e.bob * 1.5 + (oi / 3) * Math.PI * 2;
+        ctx.beginPath(); ctx.arc(sx + Math.cos(oa) * e.r * 1.9, sy + Math.sin(oa) * e.r * 1.9, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffaa44'; ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (e.lethargion) {
+      ctx.save();
+      const pulse = 0.35 + 0.2 * Math.abs(Math.sin(e.bob * 1.2));
+      ctx.globalAlpha = pulse;
+      if (!lowSpec) { ctx.shadowColor = '#b8a000'; ctx.shadowBlur = 20; }
+      ctx.strokeStyle = '#8a7000'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
+      // Mud drip dots around perimeter
+      for (let oi = 0; oi < 6; oi++) {
+        const oa = e.bob * 0.8 + (oi / 6) * Math.PI * 2;
+        ctx.beginPath(); ctx.arc(sx + Math.cos(oa) * e.r * 2.1, sy + Math.sin(oa) * e.r * 2.1, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#b8a000'; ctx.fill();
+      }
+      ctx.restore();
+    }
     if (e.awakened) {
       ctx.save();
       ctx.translate(sx, sy);
@@ -2139,7 +2442,7 @@ function loop(now) {
       ctx.stroke();
       ctx.restore();
     }
-    drawChar(sx, sy, e.canonAngle, false, e.darkElite ? '#1a0033' : e.elite ? '#dddddd' : e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
+    drawChar(sx, sy, e.canonAngle, false, e.darkElite ? '#1a0033' : e.elite ? '#dddddd' : e.matron ? '#cc5500' : e.lethargion ? '#5a4000' : e.awakened ? 'hsl(10,90%,45%)' : e.color, e.r);
     if (e.elite || e.darkElite) {
       ctx.save();
       ctx.font = `bold ${Math.floor(e.r * 1.05)}px serif`;
@@ -2147,6 +2450,24 @@ function loop(now) {
       if (!lowSpec) { ctx.shadowColor = e.darkElite ? '#aa00ff' : '#ffeeaa'; ctx.shadowBlur = 8; }
       ctx.fillStyle = e.darkElite ? '#cc66ff' : '#ffffff';
       ctx.fillText('☠', sx, sy - 1);
+      ctx.restore();
+    }
+    if (e.matron) {
+      ctx.save();
+      ctx.font = `bold ${Math.floor(e.r * 1.05)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 8; }
+      ctx.fillStyle = '#ffcc44';
+      ctx.fillText('♛', sx, sy - 1);
+      ctx.restore();
+    }
+    if (e.lethargion) {
+      ctx.save();
+      ctx.font = `bold ${Math.floor(e.r * 1.05)}px serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      if (!lowSpec) { ctx.shadowColor = '#b8a000'; ctx.shadowBlur = 8; }
+      ctx.fillStyle = '#e8d000';
+      ctx.fillText('⬡', sx, sy - 1);
       ctx.restore();
     }
     // Frozen overlay
@@ -2278,6 +2599,22 @@ function loop(now) {
     if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 16; }
     ctx.fillStyle = warn ? `rgba(255,${Math.floor(80 + 80 * pulse)},0,1)` : '#ff9900';
     ctx.fillText('🔥 FEVER ' + secLeft + 's', W / 2, 56);
+    ctx.restore();
+  }
+
+  // Mud slow screen tint + countdown
+  if (mudSlowTimer > 0) {
+    const mudPct = mudSlowTimer / LETHARGION_SLOW_DURATION;
+    ctx.save();
+    ctx.fillStyle = `rgba(90,70,0,${0.09 * mudPct})`;
+    ctx.fillRect(0, 0, W, H);
+    const secLeft = Math.ceil(mudSlowTimer / 60);
+    const slowPct = Math.round((1 - mudSlowMul) * 100);
+    ctx.font = 'bold 13px Orbitron, monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    if (!lowSpec) { ctx.shadowColor = '#b8a000'; ctx.shadowBlur = 8; }
+    ctx.fillStyle = `rgba(220,190,0,${0.6 + 0.4 * mudPct})`;
+    ctx.fillText('⬡ SLOWED −' + slowPct + '% ' + secLeft + 's', W / 2, 80);
     ctx.restore();
   }
 

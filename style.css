@@ -865,7 +865,9 @@ canvas {
   -webkit-user-select: none;
   flex-direction: row;
   align-items: center;
-  justify-content: space-around;
+  justify-content: space-between;
+  padding: 0 28px;
+  box-sizing: border-box;
 }
 
 #mobile-controls.visible {
@@ -925,17 +927,13 @@ canvas {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-/* Right joystick – orange/cannon theme */
-#joy-right .joy-base {
-  border-color: rgba(255, 107, 26, 0.35);
-}
-
-#joy-right .joy-base::before {
-  border-color: rgba(255, 107, 26, 0.12);
-}
-
-#joy-right .joy-thumb {
-  background: radial-gradient(circle at 38% 35%, rgba(255,180,100,0.7), rgba(200,80,10,0.35));
-  border-color: rgba(255, 107, 26, 0.65);
-  box-shadow: 0 0 14px rgba(255, 107, 26, 0.35), 0 2px 10px rgba(0,0,0,0.3);
+#aim-hint {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.52rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.2);
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
 }
