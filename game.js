@@ -72,9 +72,9 @@ let feverActive = false, feverTimer = 0;
 let mudSlowTimer = 0, mudSlowMul = 1.0;
 
 // ── DIFFICULTY ──
-let elapsedSec = 0, lastWave = 1, waveFreeze = 0;
+let elapsedSec = 0, lastWave = 1;
 
-function getWave()              { return Math.floor(elapsedSec / 30) + 1; }
+function getWave()              { return Math.floor(elapsedSec / 33) + 1; }
 function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20), 20); }
 function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); }
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
@@ -133,7 +133,7 @@ const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const DROP_STRIKE_FUSE = 180;   // frames until impact (~3s)
 const DROP_STRIKE_R    = 240;   // blast radius (world units)
-const MATRON_SPAWN_INTERVAL    = 50;  // frames between swarmling spawns (~0.8s)
+const MATRON_SPAWN_INTERVAL    = 55;  // frames between swarmling spawns (~0.9s)
 const LETHARGION_MUD_INTERVAL  = 300; // frames between mud volleys (~5s)
 const LETHARGION_MUD_LIFE      = 420; // frames mud lasts (~7s)
 const LETHARGION_MUD_SPEED     = 2.5; // world units/frame
@@ -141,11 +141,11 @@ const LETHARGION_MUD_R         = 10;  // mud blob radius
 const LETHARGION_SLOW_DURATION = 300; // frames of slow (~5s)
 const LETHARGION_SLOW_MUL      = 0.8; // ×0.8 per mud blob hit (stacks)
 const LETHARGION_SLOW_MIN      = 0.3; // cap: max ~70% reduction
-const SPROUT_SHIELD_R = 160;   // tree bullet-block radius (world units)
+const SPROUT_SHIELD_R = 221;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
-const MIASMA_R = 160;          // miasma tree damage radius (world units)
+const MIASMA_R = 192;          // miasma tree damage radius (world units)
 const MIASMA_DMG_INTERVAL = 30; // frames between miasma damage ticks
-const MIASMA_LIFE = 12.48 * 60;  // miasma tree lifetime (frames)
+const MIASMA_LIFE = 14.98 * 60;  // miasma tree lifetime (frames)
 const BARRIER_WALL_LEN = 200;  // full barrier wall length (world units)
 const BARRIER_WALL_LIFE = 3600; // ~60s at 60fps baseline
 const BARRIER_THICKNESS = 8;   // collision half-thickness (world units)
@@ -361,7 +361,7 @@ function spawnSprout() {
   const dist = Math.sqrt(sx * sx + sy * sy);
   if (dist > ARENA_R - 100) { sx *= (ARENA_R - 100) / dist; sy *= (ARENA_R - 100) / dist; }
   const rnd = Math.random();
-  const kind = rnd < 0.34 ? 'aegis' : rnd < 0.67 ? 'miasma' : 'barrier';
+  const kind = rnd < 0.25 ? 'aegis' : rnd < 0.50 ? 'miasma' : 'barrier';
   sprouts.push({ x: sx, y: sy, level: 1, touchCooldown: 0, r: 16, isTree: false, isMiasma: false, isBarrier: false, treeTimer: 0, miasmaTimer: 0, barrierTimer: kind === 'barrier' ? BARRIER_WALL_LIFE : 0, dmgTick: 0, pulse: 0, kind, angle: Math.random() * Math.PI });
 }
 
@@ -772,7 +772,7 @@ function drawSprout(s) {
     ctx.beginPath(); ctx.arc(sx - 12, sy - 8, 16, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(sx + 12, sy - 8, 16, 0, Math.PI * 2); ctx.fill();
     // Timer bar
-    const frac = s.treeTimer / (8 * 60);
+    const frac = s.treeTimer / (14.98 * 60);
     ctx.shadowBlur = 0;
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
     ctx.fillRect(sx - 24, sy - 46, 48, 5);
@@ -1266,7 +1266,7 @@ function restartGame() {
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
   shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
-  elapsedSec = 0; lastWave = 1; lastExtraWave = 0; waveFreeze = 0; paused = false;
+  elapsedSec = 0; lastWave = 1; lastExtraWave = 0; paused = false;
   bosses.length = 0; lastBossWave = 0;
   document.getElementById('msg-overlay').classList.remove('show');
 }
@@ -1375,19 +1375,7 @@ function loop(now) {
     return;
   }
   if (gameActive) {
-    if (waveFreeze > 0) {
-      waveFreeze = Math.max(0, waveFreeze - dt / 1000);
-    } else {
-      const nextBoundary = lastWave * 30;
-      const newElapsed = elapsedSec + dt / 1000;
-      if (newElapsed >= nextBoundary && lastWave > 3 && enemies.length >= 20) {
-        waveFreeze = 5 * (lastWave - 3);
-        elapsedSec = nextBoundary - 0.001;
-        feed('⏳ WAVE EXTENDED +' + waveFreeze + 's — clear enemies!');
-      } else {
-        elapsedSec = newElapsed;
-      }
-    }
+    elapsedSec += dt / 1000;
 
     // Auto score: +wave pts per second
     scoreTimer += dt;
@@ -1467,7 +1455,7 @@ function loop(now) {
 
     // Boss spawn check (every 5 waves)
     const waveNow = getWave();
-    if (waveNow >= 5 && waveNow % 5 === 0 && waveNow !== lastBossWave) {
+    if (waveNow >= 7 && (waveNow - 7) % 5 === 0 && waveNow !== lastBossWave) {
       lastBossWave = waveNow;
       spawnBoss(waveNow);
     }
@@ -2031,6 +2019,8 @@ function loop(now) {
             score += 500 * getWave(); totalPoints += 500 * getWave();
             bosses.splice(bi, 1); killed++;
           }
+          eBullets.length = 0;
+          slowMuds.length = 0;
           if (life < 7) life++;
           shockwaves.push({ x: cam.x, y: cam.y, r: 0, maxR: ARENA_R, life: 1.0 });
           feed('✦ E·X·T·R·A! ' + killed + ' ENEMIES DESTROYED + 1 HEART ✦');
@@ -2232,9 +2222,9 @@ function loop(now) {
             feed('SPROUT → BARRIER WALL! Blocks bullets & movement');
           } else {
             s.isTree = true;
-            s.treeTimer = 12.48 * 60;
+            s.treeTimer = 14.98 * 60;
             spawnFloat(s.x, s.y, 'TREE!', '#22dd55');
-            feed('SPROUT → TREE! BULLET SHIELD ACTIVE 8s');
+            feed('SPROUT → TREE! BULLET SHIELD ACTIVE 15s');
           }
         } else {
           const treeName = s.kind === 'miasma' ? 'MiasmaTree' : s.kind === 'barrier' ? 'Barrier' : 'AegisTree';
@@ -2347,7 +2337,7 @@ function loop(now) {
     ctx.globalAlpha = (b.pierce || b.arrow) ? 1 : Math.min(1, b.life / 20);
     if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
-    else if (b.ice) drawBullet(sx, sy, b.r, '#aaeeff', '#0066aa');
+    else if (b.ice) drawBullet(sx, sy, b.r, '#cccccc', '#666666');
     else if (b.split || b.splitChild) drawBullet(sx, sy, b.r, '#ffbbdd', '#ff66bb');
     else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
     ctx.restore();

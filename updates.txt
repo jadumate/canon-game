@@ -1,3 +1,41 @@
+## [2026-03-27] Tree & Barrier Buffs (build 134)
+
+### Barrier — Higher Spawn Rate
+- Barrier sprout spawn probability: **33% → 50%** (aegis and miasma each reduced to 25%)
+
+### Aegis Tree — Larger Shield & Longer Life
+- Bullet-block radius: **184 → 221** world units (+20%)
+- Shield duration: **12.5s → 15s** (+20%)
+
+### Miasma Tree — Larger Aura & Longer Life
+- Damage aura radius: **160 → 192** world units (+20%)
+- Aura duration: **12.5s → 15s** (+20%)
+
+---
+
+## [2026-03-23] Difficulty Rebalance & QoL (build 132)
+
+### Boss Spawn — Delayed Start
+- First boss now spawns at **wave 7** (was wave 5)
+- Subsequent bosses every 5 waves: **7, 12, 17, 22 …**
+
+### Wave Duration — Extended
+- Each wave now lasts **33 seconds** (was 30s, +10%)
+
+### Swarm Matron — Slower Spawning
+- Swarmling spawn interval: **50 → 55 frames** (−10% spawn rate)
+
+### Sprout Shield — Enlarged
+- Bullet-block radius: **160 → 184** world units (+15%)
+
+### Ice Turret — Bullet Color
+- Ice turret bullet recolored from blue to **grey** (`#cccccc` fill / `#666666` outline)
+
+### EXTRA Completion — Bullet Clear
+- Completing E·X·T·R·A now **clears all enemy bullets and mud blobs** on screen
+
+---
+
 ## [2026-03-20] Balancing & Tuning (builds 127–129)
 
 ### Slow Mud — Stacking Effect (build 128)
