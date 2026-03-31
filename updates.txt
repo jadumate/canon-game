@@ -1,3 +1,38 @@
+## [2026-03-31] Performance Pass (build 136)
+
+### Performance Improvements
+- Removed always-active shadowBlur calls on pickup labels, spice amount text, EXTRA letter text, and arena boundary -- no visual loss
+- Moved tree leaf blur and awakened/barrier blurs behind !lowSpec guard
+- Reduced large blur values: 40->20, 32->16, 26->14, 22->12, 24->12, 20->10, 18->10
+- Removed elite enemy vibration (seize tremor) -- elites still bob, lateral shake gone
+
+## [2026-03-31] Homing Paradise Spice Product (build 135)
+
+### New Spice Product — Homing Paradise [H]
+- Added 6th spice product: **Homing Paradise** (selector key `H`, type `f`)
+- Activation: spends spice to enter Homing Paradise mode for **10 seconds**
+- Re-activating while active **extends** the timer +10s (no refund)
+- All bullets fired become **homing missiles** — auto-aimed at nearest enemy on spawn and continuously steer toward target
+- Homing bullets deal **+20 flat damage** bonus on top of base damage
+- Homing turn rate: **0.14** (tighter than ARW pickup at 0.1)
+- Bullet lifetime extended to **600 frames** to allow long-range tracking
+- Bullets rendered as **purple/magenta arrow** (`#ee88ff` fill, `#6600cc` shadow)
+- Screen-edge **purple vignette** during active mode; intensifies and pulses in final 3s (warning phase)
+- Subtle **purple screen tint** during active mode
+- `🎯 HOMING Xs` countdown displayed top-center (rises if Fever is also active)
+- Warning phase: countdown font enlarges and flushes to bright purple pulse
+
+### Refactor — drawArrowBullet Color Support
+- `drawArrowBullet(sx, sy, angle, r, color, shadowColor)` now accepts optional color params
+- Defaults to original `#00ffff` — no change to ARW pickup bullets
+
+### HUD — Selector Updated
+- `[M][N][I][D][A][H]` — new `H` button added to spice product strip in HTML
+- `_dom.sprodF` cached; active class toggled correctly
+- `E`/`1` key cycle now includes `f` in rotation order
+
+---
+
 ## [2026-03-27] Tree & Barrier Buffs (build 134)
 
 ### Barrier — Higher Spawn Rate

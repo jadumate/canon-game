@@ -69,6 +69,7 @@ window.addEventListener('resize', checkMobile);
 let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 let feverActive = false, feverTimer = 0;
+let homingParadiseActive = false, homingParadiseTimer = 0;
 let mudSlowTimer = 0, mudSlowMul = 1.0;
 
 // ── DIFFICULTY ──
@@ -82,7 +83,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
 function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'DROP STRIKE' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'DROP STRIKE', f: 'HOMING PARADISE' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -96,7 +97,7 @@ window.addEventListener('keydown', e => {
   }
   if (e.code === 'Space' && gameActive) { paused = !paused; }
   if ((e.code === 'KeyE' || e.code === 'Digit1') && gameActive) {
-    const order = ['a', 'b', 'c', 'd', 'e'];
+    const order = ['a', 'b', 'c', 'd', 'e', 'f'];
     setSpiceProduct(order[(order.indexOf(spiceProductType) + 1) % order.length]);
   }
 });
@@ -128,6 +129,8 @@ const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
 const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
 const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
+const HOMING_PARADISE_DURATION = 600;  // ~10s at 60fps baseline
+const HOMING_PARADISE_WARN_AT  = 180;  // last 3s — warning blink threshold
 const DARK_MIST_R     = 389;   // dark skull mist radius (world units)
 const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
@@ -158,7 +161,12 @@ function fireBullet() {
   const splitRate  = (5 + (upg.split  - 1) * 2) / 100;
   // Spawn at cannon barrel tip (r=24, tip = 24*(0.38+0.95) ≈ 32) to avoid being hidden behind player body
   const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
-  if (Math.random() < pierceRate) {
+  if (homingParadiseActive && enemies.length > 0) {
+    let nearestE = null, nearestD = Infinity;
+    enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
+    const aa = nearestE ? Math.atan2(nearestE.y - cam.y, nearestE.x - cam.x) : a;
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(aa) * s, vy: Math.sin(aa) * s, r: r * 1.2, life: 600, homingParadise: true });
+  } else if (Math.random() < pierceRate) {
     bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.5, life: 800, pierce: true, hit: new Set() });
   } else if (Math.random() < splitRate) {
     bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: r * 1.1, life: 200, split: true });
@@ -422,7 +430,7 @@ function drawExtraPickup(p) {
   ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.globalAlpha = 1;
   ctx.beginPath(); ctx.roundRect(sx - p.r, sy - p.r, s, s, 3); ctx.stroke();
   // letter
-  ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 0;
   ctx.font = 'bold 12px Orbitron, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
@@ -444,7 +452,7 @@ function drawSpice(s) {
   ctx.lineTo(sx - s.r, sy);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
-  ctx.shadowBlur = 3; ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 0;
   ctx.font = 'bold 8px Orbitron, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#5a3a00';
@@ -624,7 +632,7 @@ function drawBoss(b) {
             : ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
   }
   ctx.closePath();
-  if (!lowSpec) { ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 20; }
+  if (!lowSpec) { ctx.shadowColor = '#ff0055'; ctx.shadowBlur = 10; }
   ctx.fillStyle = 'rgba(200,0,60,0.3)';
   ctx.fill();
   ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke();
@@ -691,11 +699,11 @@ function drawSprout(s) {
     const hl = BARRIER_WALL_LEN / 2;
     const x1s = sx - c * hl, y1s = sy - sn * hl;
     const x2s = sx + c * hl, y2s = sy + sn * hl;
-    if (!lowSpec) { ctx.shadowColor = '#8b5a2b'; ctx.shadowBlur = 18; }
+    if (!lowSpec) { ctx.shadowColor = '#8b5a2b'; ctx.shadowBlur = 10; }
     ctx.strokeStyle = 'rgba(139,90,43,0.3)';
     ctx.lineWidth = 18; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
-    ctx.shadowBlur = 6;
+    if (!lowSpec) { ctx.shadowBlur = 6; }
     ctx.strokeStyle = '#a0622a'; ctx.lineWidth = 8;
     ctx.beginPath(); ctx.moveTo(x1s, y1s); ctx.lineTo(x2s, y2s); ctx.stroke();
     ctx.strokeStyle = '#f0d0a0'; ctx.lineWidth = 2;
@@ -807,7 +815,8 @@ function drawSprout(s) {
     const stemH = 6 + lv * 5;
     ctx.beginPath(); ctx.moveTo(sx, sy + 4); ctx.lineTo(sx, sy - stemH); ctx.stroke();
     // Leaves per level
-    ctx.fillStyle = leafColor; ctx.shadowColor = leafColor; ctx.shadowBlur = 6;
+    ctx.fillStyle = leafColor;
+    if (!lowSpec) { ctx.shadowColor = leafColor; ctx.shadowBlur = 6; }
     if (lv >= 1) {
       ctx.beginPath(); ctx.ellipse(sx - 7, sy - stemH + 4, 7, 4, -0.5, 0, Math.PI * 2); ctx.fill();
     }
@@ -848,7 +857,7 @@ function drawPickup(p) {
     ctx.fillStyle = p.color; ctx.fill();
   }
   // label
-  ctx.shadowBlur = 4; ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0; ctx.globalAlpha = 1;
   ctx.font = 'bold 8px Orbitron, monospace';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
@@ -932,12 +941,9 @@ function drawGrid() {
   ctx.beginPath(); ctx.arc(bx, by, ARENA_R, 0, Math.PI * 2);
   ctx.strokeStyle = 'rgba(220,80,30,0.7)';
   ctx.lineWidth = 3;
-  ctx.shadowColor = 'rgba(255,100,30,0.5)';
-  ctx.shadowBlur = 10;
   ctx.setLineDash([14, 12]);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -1026,12 +1032,14 @@ function drawBullet(sx, sy, r, c1, c2) {
   ctx.restore();
 }
 
-function drawArrowBullet(sx, sy, angle, r) {
+function drawArrowBullet(sx, sy, angle, r, color, shadowColor) {
+  const col  = color       || '#00ffff';
+  const shad = shadowColor || '#00ffff';
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(angle);
-  if (!lowSpec) { ctx.shadowColor = '#00ffff'; ctx.shadowBlur = r * 3; }
-  ctx.fillStyle = '#00ffff';
+  if (!lowSpec) { ctx.shadowColor = shad; ctx.shadowBlur = r * 3; }
+  ctx.fillStyle = col;
   ctx.beginPath();
   ctx.moveTo(r * 1.8, 0);
   ctx.lineTo(-r, -r * 0.75);
@@ -1126,6 +1134,7 @@ function initDomCache() {
   _dom.sprodC    = document.getElementById('sprod-c');
   _dom.sprodD    = document.getElementById('sprod-d');
   _dom.sprodE    = document.getElementById('sprod-e');
+  _dom.sprodF    = document.getElementById('sprod-f');
 }
 
 function updateUI() {
@@ -1167,6 +1176,7 @@ function updateUI() {
     _dom.sprodC.classList.toggle('active', spiceProductType === 'c');
     _dom.sprodD.classList.toggle('active', spiceProductType === 'd');
     _dom.sprodE.classList.toggle('active', spiceProductType === 'e');
+    _dom.sprodF.classList.toggle('active', spiceProductType === 'f');
   }
 }
 
@@ -1264,7 +1274,7 @@ function restartGame() {
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; dropStrikes.length = 0; slowMuds.length = 0; spiceTimer = 0;
   mudSlowTimer = 0; mudSlowMul = 1.0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0; homingParadiseActive = false; homingParadiseTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1; lastExtraWave = 0; paused = false;
   bosses.length = 0; lastBossWave = 0;
@@ -1364,7 +1374,7 @@ function loop(now) {
     ctx.font = 'bold 36px Orbitron, monospace';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
-    if (!lowSpec) { ctx.shadowColor = '#00ccff'; ctx.shadowBlur = 24; }
+    if (!lowSpec) { ctx.shadowColor = '#00ccff'; ctx.shadowBlur = 12; }
     ctx.fillText('PAUSED', W / 2, H / 2);
     ctx.font = '14px Orbitron, monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
@@ -1650,7 +1660,7 @@ function loop(now) {
     // Player bullet collisions
     for (let i = bullets.length - 1; i >= 0; i--) {
       const b = bullets[i];
-      if (b.arrow && enemies.length > 0) {
+      if ((b.arrow || b.homingParadise) && enemies.length > 0) {
         let nearestE = null, nearestD = Infinity;
         enemies.forEach(e => { const d2 = (e.x - b.x) ** 2 + (e.y - b.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
         if (nearestE) {
@@ -1659,7 +1669,8 @@ function loop(now) {
           let diff = targetA - curA;
           while (diff > Math.PI) diff -= Math.PI * 2;
           while (diff < -Math.PI) diff += Math.PI * 2;
-          const turn = Math.max(-0.1, Math.min(0.1, diff)) * dtf;
+          const turnRate = b.homingParadise ? 0.14 : 0.1;
+          const turn = Math.max(-turnRate, Math.min(turnRate, diff)) * dtf;
           const spd = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
           const newA = curA + turn;
           b.vx = Math.cos(newA) * spd; b.vy = Math.sin(newA) * spd;
@@ -1674,7 +1685,7 @@ function loop(now) {
         const dx = b.x - e.x, dy = b.y - e.y;
         if (dx * dx + dy * dy < (b.r + e.r) ** 2) {
           if (b.pierce) b.hit.add(e);
-          e.hp -= b.miniDmg !== undefined ? b.miniDmg : b.iceDmg !== undefined ? b.iceDmg : (b.arrow ? getBD() * 2 : getBD());
+          e.hp -= b.miniDmg !== undefined ? b.miniDmg : b.iceDmg !== undefined ? b.iceDmg : (b.homingParadise ? getBD() + 20 : b.arrow ? getBD() * 2 : getBD());
           if (b.ice && !e.frozen) { e.frozen = true; e.frozenTimer = ICE_FREEZE_TIME; spawnFloat(e.x, e.y, 'FROZEN!', '#88ddff'); }
           if (e.hp <= 0) {
             const bonus = 100 * getWave();
@@ -1715,7 +1726,7 @@ function loop(now) {
         const dx = b.x - boss.x, dy = b.y - boss.y;
         if (dx * dx + dy * dy < (b.r + boss.r) ** 2) {
           if (b.pierce) b.hit.add(boss);
-          const dmg = b.miniDmg !== undefined ? b.miniDmg : (b.arrow ? getBD() * 2 : getBD());
+          const dmg = b.miniDmg !== undefined ? b.miniDmg : (b.homingParadise ? getBD() + 20 : b.arrow ? getBD() * 2 : getBD());
           boss.hp -= dmg;
           if (b.ice && !boss.frozen) { boss.frozen = true; boss.frozenTimer = ICE_FREEZE_TIME; spawnFloat(boss.x, boss.y, 'BOSS FROZEN!', '#88ddff'); }
           explode(boss.x, boss.y, '#ff0055', 12);
@@ -1810,6 +1821,16 @@ function loop(now) {
     }
 
     if (invincible > 0) invincible -= dtf;
+
+    // Homing Paradise: timer
+    if (homingParadiseActive) {
+      homingParadiseTimer -= dtf;
+      if (homingParadiseTimer <= 0) {
+        homingParadiseActive = false; homingParadiseTimer = 0;
+        spawnFloat(cam.x, cam.y, 'HOMING OVER', '#cc44ff');
+        feed('HOMING PARADISE ENDED');
+      }
+    }
 
     // Fever mode: timer + contact-kill sweep
     if (feverActive) {
@@ -1987,6 +2008,16 @@ function loop(now) {
             dropStrikes.push({ x: tx, y: ty, progress: 0 });
             spawnFloat(tx, ty, 'INCOMING!', '#ff4400');
             feed('DROP STRIKE [A] — BRACE FOR IMPACT! Next cost: ' + nextCost);
+          } else if (spiceProductType === 'f') {
+            if (!homingParadiseActive) {
+              homingParadiseActive = true; homingParadiseTimer = HOMING_PARADISE_DURATION;
+              spawnFloat(cam.x, cam.y, 'HOMING PARADISE!', '#cc44ff');
+              feed('HOMING PARADISE [H] — ALL BULLETS HOMING +20 PWR for 10s!');
+            } else {
+              homingParadiseTimer += HOMING_PARADISE_DURATION;
+              spawnFloat(cam.x, cam.y, 'HOMING +10s!', '#cc44ff');
+              feed('HOMING PARADISE — extended!');
+            }
           }
         }
       }
@@ -2275,7 +2306,7 @@ function loop(now) {
     ctx.beginPath(); ctx.arc(sx, sy, sw.r, 0, Math.PI * 2);
     ctx.strokeStyle = '#ffdd00';
     ctx.lineWidth = 3 + sw.life * 6;
-    if (!lowSpec) { ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 20; }
+    if (!lowSpec) { ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 10; }
     ctx.stroke();
     ctx.restore();
   });
@@ -2334,8 +2365,9 @@ function loop(now) {
   bullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
     ctx.save();
-    ctx.globalAlpha = (b.pierce || b.arrow) ? 1 : Math.min(1, b.life / 20);
-    if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
+    ctx.globalAlpha = (b.pierce || b.arrow || b.homingParadise) ? 1 : Math.min(1, b.life / 20);
+    if (b.homingParadise) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r, '#ee88ff', '#6600cc');
+    else if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
     else if (b.ice) drawBullet(sx, sy, b.r, '#cccccc', '#666666');
     else if (b.split || b.splitChild) drawBullet(sx, sy, b.r, '#ffbbdd', '#ff66bb');
@@ -2348,11 +2380,7 @@ function loop(now) {
 
   enemies.forEach(e => {
     const bob = Math.sin(e.bob) * 3;
-    const isSeizing = e.elite || e.darkElite || e.matron || e.lethargion;
-    const seizeX = isSeizing ? Math.sin(e.aliveTime * 0.0216) * 4 : 0;
-    const seizeY = isSeizing ? Math.cos(e.aliveTime * 0.0296) * 4 : 0;
-    const { sx: _sx, sy: _sy } = wToS(e.x, e.y + bob);
-    const sx = _sx + seizeX, sy = _sy + seizeY;
+    const { sx, sy } = wToS(e.x, e.y + bob);
 
     // Hide non-dark-skull enemies inside any active mist
     if (!e.darkElite && !e.elite && !e.matron && !e.lethargion) {
@@ -2367,7 +2395,7 @@ function loop(now) {
       ctx.save();
       const pulse = 0.45 + 0.2 * Math.sin(e.bob * 2);
       ctx.globalAlpha = pulse;
-      if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 22; }
+      if (!lowSpec) { ctx.shadowColor = '#ffeeaa'; ctx.shadowBlur = 12; }
       ctx.strokeStyle = '#ffeeaa'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
@@ -2376,7 +2404,7 @@ function loop(now) {
       ctx.save();
       const pulse = 0.5 + 0.2 * Math.sin(e.bob * 2);
       ctx.globalAlpha = pulse;
-      if (!lowSpec) { ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 26; }
+      if (!lowSpec) { ctx.shadowColor = '#aa00ff'; ctx.shadowBlur = 14; }
       ctx.strokeStyle = '#7700cc'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
@@ -2385,7 +2413,7 @@ function loop(now) {
       ctx.save();
       const pulse = 0.4 + 0.25 * Math.abs(Math.sin(e.bob * 1.8));
       ctx.globalAlpha = pulse;
-      if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 22; }
+      if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = 12; }
       ctx.strokeStyle = '#ff8800'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       // Orbiting dots to hint at spawning
@@ -2400,7 +2428,7 @@ function loop(now) {
       ctx.save();
       const pulse = 0.35 + 0.2 * Math.abs(Math.sin(e.bob * 1.2));
       ctx.globalAlpha = pulse;
-      if (!lowSpec) { ctx.shadowColor = '#b8a000'; ctx.shadowBlur = 20; }
+      if (!lowSpec) { ctx.shadowColor = '#b8a000'; ctx.shadowBlur = 10; }
       ctx.strokeStyle = '#8a7000'; ctx.lineWidth = 2.5;
       ctx.beginPath(); ctx.arc(sx, sy, e.r * 1.55, 0, Math.PI * 2); ctx.stroke();
       // Mud drip dots around perimeter
@@ -2424,8 +2452,7 @@ function loop(now) {
       }
       ctx.closePath();
       ctx.fillStyle = 'rgba(255,50,0,0.25)';
-      ctx.shadowColor = '#ff3300';
-      ctx.shadowBlur = 14;
+      if (!lowSpec) { ctx.shadowColor = '#ff3300'; ctx.shadowBlur = 14; }
       ctx.fill();
       ctx.strokeStyle = '#ff4400';
       ctx.lineWidth = 1.5;
@@ -2510,7 +2537,7 @@ function loop(now) {
     mg.addColorStop(0.88,'rgba(0,0,0,0.63)');
     mg.addColorStop(1,   'rgba(0,0,0,0)');
     ctx.fillStyle = mg;
-    if (!lowSpec) { ctx.shadowColor = '#6600aa'; ctx.shadowBlur = 32; }
+    if (!lowSpec) { ctx.shadowColor = '#6600aa'; ctx.shadowBlur = 16; }
     ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   });
@@ -2546,7 +2573,7 @@ function loop(now) {
       const pulse = Math.abs(Math.sin(feverTimer * 0.25));
       // Large pulsing aura behind player
       ctx.save();
-      if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 40; }
+      if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 10; }
       ctx.globalAlpha = warn ? 0.4 + 0.4 * pulse : 0.65;
       const auraG = ctx.createRadialGradient(W / 2, H / 2, 18, W / 2, H / 2, 90);
       auraG.addColorStop(0, 'rgba(255,180,0,0.9)');
@@ -2589,6 +2616,35 @@ function loop(now) {
     if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 16; }
     ctx.fillStyle = warn ? `rgba(255,${Math.floor(80 + 80 * pulse)},0,1)` : '#ff9900';
     ctx.fillText('🔥 FEVER ' + secLeft + 's', W / 2, 56);
+    ctx.restore();
+  }
+
+  // Homing Paradise screen-space effects + timer
+  if (homingParadiseActive) {
+    const warn = homingParadiseTimer < HOMING_PARADISE_WARN_AT;
+    const pulse = Math.abs(Math.sin(homingParadiseTimer * 0.18));
+    // Screen-edge purple vignette
+    ctx.save();
+    const hpEdgeG = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.8);
+    hpEdgeG.addColorStop(0, 'rgba(150,0,255,0)');
+    hpEdgeG.addColorStop(1, warn ? `rgba(180,0,255,${0.22 + 0.22 * pulse})` : 'rgba(130,0,220,0.15)');
+    ctx.fillStyle = hpEdgeG;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    // Subtle purple tint
+    ctx.save();
+    ctx.fillStyle = warn ? `rgba(140,0,255,${0.05 + 0.07 * pulse})` : 'rgba(120,0,200,0.04)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+    // Timer text top-center (below fever if both active)
+    const hpSecLeft = Math.ceil(homingParadiseTimer / 60);
+    const hpY = feverActive ? 80 : 56;
+    ctx.save();
+    ctx.font = `bold ${warn ? 22 : 18}px Orbitron, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    if (!lowSpec) { ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 16; }
+    ctx.fillStyle = warn ? `rgba(${Math.floor(180 + 75 * pulse)},0,255,1)` : '#cc44ff';
+    ctx.fillText('🎯 HOMING ' + hpSecLeft + 's', W / 2, hpY);
     ctx.restore();
   }
 
