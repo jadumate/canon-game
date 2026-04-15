@@ -1,3 +1,29 @@
+## [2026-04-15] Enemy Difficulty Rebalance (build 138)
+
+### Enemy Scaling — Slower Growth
+- Spawn interval: `3000 - elapsedSec * 10` (cap 700ms) — was `* 15` (cap 600ms)
+- Enemy speed: `0.07 + elapsedSec * 0.0004` — was `* 0.0006`
+- Bullet speed: `2.74 + elapsedSec * 0.01` — was `* 0.0135`
+- Fire interval: `1600 - elapsedSec * 0.8` (cap 450ms) — was `* 1.3` (cap 400ms)
+- Max enemies unchanged: `2 + elapsedSec / 20` (cap 20)
+
+---
+
+## [2026-04-03] Bug Fix & Minimee Swarm (build 137)
+
+### Bug Fix -- Bullet Color on Slow Computers
+- Default player bullets appeared yellow on lowSpec hardware
+- Fixed: bullet center color changed from `#fff4aa` to `#ffffff` so lowSpec flat-fill renders white instead of yellow
+
+### Minimee Spice Product -- Swarm Mode
+- Spending spice on [N] now activates Swarm Mode (10s) instead of spawning a single minimee
+- While active: one minimee spawns every 2 seconds (max 3 active companions)
+- Re-activating while running extends timer by +10s
+- HUD countdown `SWARM Xs` shown top-center; warning pulse in final 3s
+- Mode ends with "SWARM OVER" float text
+
+---
+
 ## [2026-03-31] Performance Pass (build 136)
 
 ### Performance Improvements

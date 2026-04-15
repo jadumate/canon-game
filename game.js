@@ -70,6 +70,7 @@ let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 let feverActive = false, feverTimer = 0;
 let homingParadiseActive = false, homingParadiseTimer = 0;
+let minimeeSwarmActive = false, minimeeSwarmTimer = 0, minimeeSpawnTimer = 0;
 let mudSlowTimer = 0, mudSlowMul = 1.0;
 
 // ── DIFFICULTY ──
@@ -77,11 +78,11 @@ let elapsedSec = 0, lastWave = 1;
 
 function getWave()              { return Math.floor(elapsedSec / 33) + 1; }
 function getMaxEnemies()        { return Math.min(2 + Math.floor(elapsedSec / 20), 20); }
-function getSpawnInterval()     { return Math.max(600, 3000 - elapsedSec * 15); }
+function getSpawnInterval()     { return Math.max(700, 3000 - elapsedSec * 10); }
 function getEnemyHP()           { return Math.max(1, Math.floor(1 + elapsedSec / 40)); }
-function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0006; }
-function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.0135; }
-function getEnemyShootInterval(){ return Math.max(400, 1600 - elapsedSec * 1.3); }
+function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0004; }
+function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.01; }
+function getEnemyShootInterval(){ return Math.max(450, 1600 - elapsedSec * 0.8); }
 
 const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'DROP STRIKE', f: 'HOMING PARADISE' };
 function setSpiceProduct(p) {
@@ -131,6 +132,9 @@ const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
 const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
 const HOMING_PARADISE_DURATION = 600;  // ~10s at 60fps baseline
 const HOMING_PARADISE_WARN_AT  = 180;  // last 3s — warning blink threshold
+const MINIMEE_SWARM_DURATION   = 600;  // ~10s at 60fps baseline
+const MINIMEE_SWARM_WARN_AT    = 180;  // last 3s — warning blink threshold
+const MINIMEE_SPAWN_INTERVAL   = 120;  // spawn one minimee every 2s (frames)
 const DARK_MIST_R     = 389;   // dark skull mist radius (world units)
 const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
@@ -1274,7 +1278,7 @@ function restartGame() {
   spices.length = 0; mines.length = 0; iceTurrets.length = 0; dropStrikes.length = 0; slowMuds.length = 0; spiceTimer = 0;
   mudSlowTimer = 0; mudSlowMul = 1.0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0; homingParadiseActive = false; homingParadiseTimer = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0; homingParadiseActive = false; homingParadiseTimer = 0; minimeeSwarmActive = false; minimeeSwarmTimer = 0; minimeeSpawnTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1; lastExtraWave = 0; paused = false;
   bosses.length = 0; lastBossWave = 0;
@@ -1832,6 +1836,26 @@ function loop(now) {
       }
     }
 
+    // Minimee Swarm: timer + periodic spawn
+    if (minimeeSwarmActive) {
+      minimeeSwarmTimer -= dtf;
+      if (minimeeSwarmTimer <= 0) {
+        minimeeSwarmActive = false; minimeeSwarmTimer = 0; minimeeSpawnTimer = 0;
+        spawnFloat(cam.x, cam.y, 'SWARM OVER', '#1a3aaa');
+        feed('MINIMEE SWARM ENDED');
+      } else {
+        minimeeSpawnTimer -= dtf;
+        if (minimeeSpawnTimer <= 0) {
+          minimeeSpawnTimer = MINIMEE_SPAWN_INTERVAL;
+          if (minimees.length < 3) {
+            const offsetAngle = minimees.length * (Math.PI * 2 / 3);
+            minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle, spawnTime: performance.now() });
+            spawnFloat(cam.x, cam.y, 'MINIMEE!', '#1a3aaa');
+          }
+        }
+      }
+    }
+
     // Fever mode: timer + contact-kill sweep
     if (feverActive) {
       feverTimer -= dtf;
@@ -1978,15 +2002,14 @@ function loop(now) {
             spawnFloat(cam.x, cam.y, 'MINE PLACED', '#ff6600');
             feed('MINE [M] PLACED — next cost: ' + nextCost);
           } else if (spiceProductType === 'b') {
-            if (minimees.length < 3) {
-              const offsetAngle = minimees.length * (Math.PI * 2 / 3);
-              minimees.push({ x: cam.x, y: cam.y, vx: 0, vy: 0, hp: 5, maxHp: 5, r: 18, shootTimer: 0, bob: Math.random() * Math.PI * 2, cannonAngle: 0, invincible: 0, offsetAngle, spawnTime: performance.now() });
-              spawnFloat(cam.x, cam.y, 'MINIMEE!', '#1a3aaa');
-              feed('MINIMEE [N] SPAWNED (' + minimees.length + '/3) — next cost: ' + nextCost);
+            if (!minimeeSwarmActive) {
+              minimeeSwarmActive = true; minimeeSwarmTimer = MINIMEE_SWARM_DURATION; minimeeSpawnTimer = 0;
+              spawnFloat(cam.x, cam.y, 'MINIMEE SWARM!', '#1a3aaa');
+              feed('MINIMEE [N] — SWARM MODE! Spawning every 2s for 10s!');
             } else {
-              spice += cost; spiceProductCount--;
-              feed('MINIMEE — MAX COMPANIONS (3/3)');
-              break;
+              minimeeSwarmTimer += MINIMEE_SWARM_DURATION;
+              spawnFloat(cam.x, cam.y, 'MINIMEE +10s!', '#1a3aaa');
+              feed('MINIMEE SWARM — extended!');
             }
           } else if (spiceProductType === 'c') {
             iceTurrets.push({ x: cam.x, y: cam.y, r: 18, shootTimer: 0, angle: 0, life: ICE_TURRET_LIFE });
@@ -2371,7 +2394,7 @@ function loop(now) {
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
     else if (b.ice) drawBullet(sx, sy, b.r, '#cccccc', '#666666');
     else if (b.split || b.splitChild) drawBullet(sx, sy, b.r, '#ffbbdd', '#ff66bb');
-    else drawBullet(sx, sy, b.r, '#fff4aa', '#ff6b1a');
+    else drawBullet(sx, sy, b.r, '#ffffff', '#ff6b1a');
     ctx.restore();
   });
 
@@ -2645,6 +2668,21 @@ function loop(now) {
     if (!lowSpec) { ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 16; }
     ctx.fillStyle = warn ? `rgba(${Math.floor(180 + 75 * pulse)},0,255,1)` : '#cc44ff';
     ctx.fillText('🎯 HOMING ' + hpSecLeft + 's', W / 2, hpY);
+    ctx.restore();
+  }
+
+  // Minimee Swarm timer HUD
+  if (minimeeSwarmActive) {
+    const warn = minimeeSwarmTimer < MINIMEE_SWARM_WARN_AT;
+    const pulse = Math.abs(Math.sin(minimeeSwarmTimer * 0.18));
+    const msSecLeft = Math.ceil(minimeeSwarmTimer / 60);
+    const msY = (feverActive ? 80 : 56) + (homingParadiseActive ? 28 : 0);
+    ctx.save();
+    ctx.font = `bold ${warn ? 22 : 18}px Orbitron, monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    if (!lowSpec) { ctx.shadowColor = '#1a3aaa'; ctx.shadowBlur = 16; }
+    ctx.fillStyle = warn ? `rgba(${Math.floor(50 + 50 * pulse)},${Math.floor(80 + 80 * pulse)},255,1)` : '#4466ee';
+    ctx.fillText('SWARM ' + msSecLeft + 's', W / 2, msY);
     ctx.restore();
   }
 
