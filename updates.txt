@@ -1,3 +1,22 @@
+## [2026-04-19] Bullet Fix, Homing Cap & Mine Tuning (build 139)
+
+### Bullet Rendering — Always Gradient
+- Removed low-spec flat-fill fallback from `drawBullet` — gradient + shadow always active
+- Player bullets no longer render solid white on slow hardware
+
+### Homing Paradise [H] — Active Missile Cap
+- Max 10 homing missiles on screen at once while Homing Paradise is active
+- Shots fired beyond cap are suppressed (no missile spawned); does not stall fire rate
+
+### Mine [M] — Half Cost, Independent Pricing
+- Mine placement now costs `floor(getSpiceCost() / 2)` instead of the full shared cost
+- Mine use does NOT increment `spiceProductCount`, so other products' costs are unaffected
+
+### Mine — Blast Radius +20%
+- Explosion blast radius: 200 -> 240 world units
+
+---
+
 ## [2026-04-15] Enemy Difficulty Rebalance (build 138)
 
 ### Enemy Scaling — Slower Growth

@@ -130,8 +130,9 @@ const ICE_TURRET_LIFE = 600;   // ~10s at 60fps baseline
 const ICE_FREEZE_TIME = 600;   // ~10s at 60fps baseline
 const FEVER_DURATION  = 600;   // ~10s at 60fps baseline
 const FEVER_WARN_AT   = 180;   // last 3s — warning blink threshold
-const HOMING_PARADISE_DURATION = 600;  // ~10s at 60fps baseline
-const HOMING_PARADISE_WARN_AT  = 180;  // last 3s — warning blink threshold
+const HOMING_PARADISE_DURATION  = 600;  // ~10s at 60fps baseline
+const HOMING_PARADISE_WARN_AT   = 180;  // last 3s — warning blink threshold
+const HOMING_PARADISE_MAX_SHOTS =  10;  // max homing bullets active at once
 const MINIMEE_SWARM_DURATION   = 600;  // ~10s at 60fps baseline
 const MINIMEE_SWARM_WARN_AT    = 180;  // last 3s — warning blink threshold
 const MINIMEE_SPAWN_INTERVAL   = 120;  // spawn one minimee every 2s (frames)
@@ -165,7 +166,7 @@ function fireBullet() {
   const splitRate  = (5 + (upg.split  - 1) * 2) / 100;
   // Spawn at cannon barrel tip (r=24, tip = 24*(0.38+0.95) ≈ 32) to avoid being hidden behind player body
   const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
-  if (homingParadiseActive && enemies.length > 0) {
+  if (homingParadiseActive && enemies.length > 0 && bullets.filter(b => b.homingParadise).length < HOMING_PARADISE_MAX_SHOTS) {
     let nearestE = null, nearestD = Infinity;
     enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
     const aa = nearestE ? Math.atan2(nearestE.y - cam.y, nearestE.x - cam.x) : a;
@@ -1024,14 +1025,10 @@ function drawChar(sx, sy, angle, isPlayer, color, r) {
 
 function drawBullet(sx, sy, r, c1, c2) {
   ctx.save();
-  if (!lowSpec) {
-    ctx.shadowColor = c1; ctx.shadowBlur = r * 1.2;
-    const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3, 1, sx, sy, r);
-    g.addColorStop(0, c1); g.addColorStop(1, c2);
-    ctx.fillStyle = g;
-  } else {
-    ctx.fillStyle = c1;
-  }
+  ctx.shadowColor = c1; ctx.shadowBlur = r * 1.2;
+  const g = ctx.createRadialGradient(sx - r * 0.3, sy - r * 0.3, 1, sx, sy, r);
+  g.addColorStop(0, c1); g.addColorStop(1, c2);
+  ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(sx, sy, r, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
@@ -1992,10 +1989,11 @@ function loop(now) {
         feed('SPICE ×' + s.amount + ' — Total: ' + spice);
         spices.splice(i, 1);
         // Auto-drop product when spice >= cost
-        while (spice >= getSpiceCost()) {
-          const cost = getSpiceCost();
+        // Mine [M] costs half and does not raise the shared cost counter
+        while (spice >= (spiceProductType === 'a' ? Math.floor(getSpiceCost() / 2) : getSpiceCost())) {
+          const cost = spiceProductType === 'a' ? Math.floor(getSpiceCost() / 2) : getSpiceCost();
           spice -= cost;
-          spiceProductCount++;
+          if (spiceProductType !== 'a') spiceProductCount++;
           const nextCost = getSpiceCost();
           if (spiceProductType === 'a') {
             mines.push({ x: cam.x, y: cam.y, r: MINE_R, pulse: 0 });
@@ -2146,7 +2144,7 @@ function loop(now) {
         const dx = e.x - m.x, dy = e.y - m.y;
         if (dx * dx + dy * dy < (m.r + e.r) ** 2) {
           // Trigger: destroy all enemies within blast radius
-          const BLAST_R = 200;
+          const BLAST_R = 240;
           explode(m.x, m.y, '#ff4400', 50);
           shockwaves.push({ x: m.x, y: m.y, r: 0, maxR: BLAST_R, life: 1.0 });
           let killed = 0;
