@@ -70,6 +70,7 @@ let cannonAngle = 0;
 let invincible = 0, hitFlash = 0;
 let feverActive = false, feverTimer = 0;
 let homingParadiseActive = false, homingParadiseTimer = 0;
+let crazyRocketActive = false, crazyRocketTimer = 0;
 let minimeeSwarmActive = false, minimeeSwarmTimer = 0, minimeeSpawnTimer = 0;
 let mudSlowTimer = 0, mudSlowMul = 1.0;
 
@@ -84,7 +85,7 @@ function getEnemySpeed()        { return 0.07 + elapsedSec * 0.0004; }
 function getEnemyBulletSpeed()  { return 2.74 + elapsedSec * 0.01; }
 function getEnemyShootInterval(){ return Math.max(450, 1600 - elapsedSec * 0.8); }
 
-const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'DROP STRIKE', f: 'HOMING PARADISE' };
+const SPICE_PRODUCTS = { a: 'MINE', b: 'MINIMEE', c: 'ICE TURRET', d: 'FEVER DASH', e: 'CRAZY ROCKET', f: 'HOMING PARADISE' };
 function setSpiceProduct(p) {
   spiceProductType = p;
   feed('SPICE PRODUCT: [' + p.toUpperCase() + '] ' + SPICE_PRODUCTS[p]);
@@ -114,7 +115,7 @@ function getBS() { return 7 + (upg.speed - 1) * 2; }
 function getFI() { return Math.max(150, 1000 - (upg.rate - 1) * 150); }
 function getBD() { return upg.dmg; }
 
-const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [], dropStrikes = [], slowMuds = [];
+const bullets = [], eBullets = [], enemies = [], particles = [], pickups = [], floatTexts = [], shockwaves = [], minimees = [], sprouts = [], spices = [], mines = [], iceTurrets = [], bosses = [], extraPickups = [], slowMuds = [];
 let shotTimer = 0, enemyTimer = 0, scoreTimer = 0, pickupTimer = 0, sproutTimer = 0, spiceTimer = 0;
 let firstPickupDone = false;
 let lastExtraWave = 0;
@@ -139,8 +140,9 @@ const MINIMEE_SPAWN_INTERVAL   = 120;  // spawn one minimee every 2s (frames)
 const DARK_MIST_R     = 389;   // dark skull mist radius (world units)
 const DARK_MIST_DELAY = 3000;  // ms after spawn before mist activates
 const MINIMEE_LIFETIME = 15000; // ms before minimee expires
-const DROP_STRIKE_FUSE = 180;   // frames until impact (~3s)
-const DROP_STRIKE_R    = 240;   // blast radius (world units)
+const CRAZY_ROCKET_SPLASH    = 240;  // blast radius (world units)
+const CRAZY_ROCKET_DURATION  = 600;  // ~10s at 60fps
+const CRAZY_ROCKET_WARN_AT   = 180;  // last 3s warning
 const MATRON_SPAWN_INTERVAL    = 55;  // frames between swarmling spawns (~0.9s)
 const LETHARGION_MUD_INTERVAL  = 300; // frames between mud volleys (~5s)
 const LETHARGION_MUD_LIFE      = 420; // frames mud lasts (~7s)
@@ -161,11 +163,14 @@ let playerMoveX = 0, playerMoveY = 0;
 
 function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
+  const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
+  if (crazyRocketActive) {
+    bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * (s / 2), vy: Math.sin(a) * (s / 2), r: r * 1.3, life: 1400, crazyRocket: true });
+    return;
+  }
   const pierceRate = (1 + (upg.pierce - 1) * 2) / 100;
   const arrowRate  = (1 + (upg.arrow  - 1) * 2) / 100;
   const splitRate  = (5 + (upg.split  - 1) * 2) / 100;
-  // Spawn at cannon barrel tip (r=24, tip = 24*(0.38+0.95) ≈ 32) to avoid being hidden behind player body
-  const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
   if (homingParadiseActive && enemies.length > 0 && bullets.filter(b => b.homingParadise).length < HOMING_PARADISE_MAX_SHOTS) {
     let nearestE = null, nearestD = Infinity;
     enemies.forEach(e => { const d2 = (e.x - cam.x) ** 2 + (e.y - cam.y) ** 2; if (d2 < nearestD) { nearestD = d2; nearestE = e; } });
@@ -521,97 +526,64 @@ function drawMine(m) {
   ctx.restore();
 }
 
-function drawDropStrike(d) {
-  const { sx, sy } = wToS(d.x, d.y);
-  const t = d.progress / DROP_STRIKE_FUSE; // 0→1
-  const ringR = DROP_STRIKE_R * zoom;
-
-  // Target warning ring — pulses faster as it approaches
-  ctx.save();
-  ctx.globalAlpha = 0.25 + 0.35 * Math.abs(Math.sin(t * Math.PI * 12));
-  ctx.beginPath(); ctx.arc(sx, sy, ringR, 0, Math.PI * 2);
-  ctx.strokeStyle = '#ff4400';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.restore();
-
-  // Crosshair lines at edge of ring
-  ctx.save();
-  ctx.globalAlpha = 0.55 + 0.2 * Math.abs(Math.sin(t * Math.PI * 12));
-  ctx.strokeStyle = '#ff6600';
-  ctx.lineWidth = 1.5;
-  const armLen = ringR * 0.28;
-  [0, Math.PI / 2, Math.PI, Math.PI * 1.5].forEach(a => {
-    const cx = sx + Math.cos(a) * ringR, cy = sy + Math.sin(a) * ringR;
-    ctx.beginPath();
-    ctx.moveTo(cx - Math.cos(a) * armLen, cy - Math.sin(a) * armLen);
-    ctx.lineTo(cx, cy);
-    ctx.stroke();
-  });
-  ctx.restore();
-
-  // Shadow on ground — grows as object approaches
-  ctx.save();
-  ctx.globalAlpha = 0.12 + t * 0.25;
-  ctx.beginPath(); ctx.ellipse(sx, sy, 18 + t * 26, 10 + t * 16, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#000000';
-  ctx.fill();
-  ctx.restore();
-
-  // Falling object — grows from tiny dot to full astronaut size
-  const objR = 3 + t * 17; // 3 → 20
-  const glow = t * 30;
+function drawCrazyRocket(sx, sy, ang, bulletR) {
+  const bL = (8 + bulletR * 1.2) * zoom;
+  const bW = (3 + bulletR * 0.5) * zoom;
 
   ctx.save();
-  ctx.translate(sx, sy - objR * 0.3); // slightly above shadow center
-  // Glow
-  if (!lowSpec) { ctx.shadowColor = '#ff8800'; ctx.shadowBlur = glow; }
-  // Suit body (rounded capsule)
+  ctx.translate(sx, sy);
+  ctx.rotate(ang);
+
+  // Fire trail behind
+  const trailLen = bL * 2.5;
+  const grad = ctx.createLinearGradient(-bL * 0.5, 0, -bL * 0.5 - trailLen, 0);
+  grad.addColorStop(0, 'rgba(255,200,0,0.9)');
+  grad.addColorStop(0.4, 'rgba(255,80,0,0.55)');
+  grad.addColorStop(1, 'rgba(255,0,0,0)');
   ctx.beginPath();
-  ctx.roundRect(-objR * 0.38, -objR * 0.7, objR * 0.76, objR * 1.0, objR * 0.2);
-  ctx.fillStyle = `hsl(${30 - t * 20}, 85%, ${80 - t * 25}%)`;
+  ctx.moveTo(-bL * 0.5, -bW * 0.4);
+  ctx.lineTo(-bL * 0.5 - trailLen, 0);
+  ctx.lineTo(-bL * 0.5, bW * 0.4);
+  ctx.closePath();
+  ctx.fillStyle = grad;
   ctx.fill();
-  // Helmet (circle on top)
-  ctx.beginPath(); ctx.arc(0, -objR * 0.72, objR * 0.34, 0, Math.PI * 2);
-  ctx.fillStyle = `hsl(${200 - t * 180}, 60%, ${70 - t * 20}%)`;
-  ctx.fill();
-  // Visor glint
-  if (objR > 6) {
-    ctx.beginPath(); ctx.arc(-objR * 0.08, -objR * 0.76, objR * 0.12, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.fill();
-  }
-  // Arms spread
-  ctx.strokeStyle = `hsl(${30 - t * 20}, 80%, ${75 - t * 20}%)`;
-  ctx.lineWidth = Math.max(1, objR * 0.15);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-objR * 0.38, -objR * 0.4);
-  ctx.lineTo(-objR * 0.8, -objR * 0.05);
-  ctx.moveTo(objR * 0.38, -objR * 0.4);
-  ctx.lineTo(objR * 0.8, -objR * 0.05);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.restore();
 
-  // Fire trail — short streak above (in world-up = screen-up direction)
-  if (t > 0.3) {
-    ctx.save();
-    const trailLen = objR * 2.5;
-    const grad = ctx.createLinearGradient(sx, sy - objR, sx, sy - objR - trailLen);
-    grad.addColorStop(0, `rgba(255,120,0,${0.7 * t})`);
-    grad.addColorStop(0.5, `rgba(255,60,0,${0.3 * t})`);
-    grad.addColorStop(1, 'rgba(255,0,0,0)');
-    ctx.beginPath();
-    ctx.moveTo(sx - objR * 0.3, sy - objR);
-    ctx.lineTo(sx + objR * 0.3, sy - objR);
-    ctx.lineTo(sx + objR * 0.15, sy - objR - trailLen);
-    ctx.lineTo(sx - objR * 0.15, sy - objR - trailLen);
-    ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
-    ctx.restore();
-  }
+  if (!lowSpec) { ctx.shadowColor = '#ff6600'; ctx.shadowBlur = 10; }
+
+  // Body
+  ctx.beginPath();
+  ctx.roundRect(-bL * 0.5, -bW * 0.5, bL, bW, bW * 0.3);
+  ctx.fillStyle = '#ff3300';
+  ctx.fill();
+
+  // Nose cone
+  ctx.beginPath();
+  ctx.moveTo(bL * 0.5, 0);
+  ctx.lineTo(bL * 0.5 - bW * 0.7, -bW * 0.5);
+  ctx.lineTo(bL * 0.5 - bW * 0.7, bW * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = '#ffcc00';
+  ctx.fill();
+
+  // Top fin
+  ctx.beginPath();
+  ctx.moveTo(-bL * 0.4, -bW * 0.5);
+  ctx.lineTo(-bL * 0.5 - bW * 0.5, -bW * 1.3);
+  ctx.lineTo(-bL * 0.2, -bW * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = '#cc2200';
+  ctx.fill();
+
+  // Bottom fin
+  ctx.beginPath();
+  ctx.moveTo(-bL * 0.4, bW * 0.5);
+  ctx.lineTo(-bL * 0.5 - bW * 0.5, bW * 1.3);
+  ctx.lineTo(-bL * 0.2, bW * 0.5);
+  ctx.closePath();
+  ctx.fillStyle = '#cc2200';
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function drawBoss(b) {
@@ -1272,10 +1244,10 @@ function restartGame() {
   bullets.length = 0; eBullets.length = 0; enemies.length = 0; particles.length = 0;
   upg.size = 1; upg.speed = 1; upg.rate = 1; upg.move = 1; upg.dmg = 1; upg.pierce = 1; upg.arrow = 1; upg.split = 1;
   pickups.length = 0; pickupTimer = 0; firstPickupDone = false; floatTexts.length = 0; shockwaves.length = 0; minimees.length = 0; sprouts.length = 0; sproutTimer = 0;
-  spices.length = 0; mines.length = 0; iceTurrets.length = 0; dropStrikes.length = 0; slowMuds.length = 0; spiceTimer = 0;
+  spices.length = 0; mines.length = 0; iceTurrets.length = 0; slowMuds.length = 0; spiceTimer = 0;
   mudSlowTimer = 0; mudSlowMul = 1.0;
   extraPickups.length = 0; lastExtraWave = getWave(); EXTRA_LETTERS.forEach(l => extraCollected[l] = false); updateExtraBoard();
-  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0; homingParadiseActive = false; homingParadiseTimer = 0; minimeeSwarmActive = false; minimeeSwarmTimer = 0; minimeeSpawnTimer = 0;
+  shotTimer = 0; enemyTimer = 0; scoreTimer = 0; invincible = 0; hitFlash = 0; feverActive = false; feverTimer = 0; homingParadiseActive = false; homingParadiseTimer = 0; crazyRocketActive = false; crazyRocketTimer = 0; minimeeSwarmActive = false; minimeeSwarmTimer = 0; minimeeSpawnTimer = 0;
   playerMoveX = 0; playerMoveY = 0;
   elapsedSec = 0; lastWave = 1; lastExtraWave = 0; paused = false;
   bosses.length = 0; lastBossWave = 0;
@@ -1679,6 +1651,41 @@ function loop(now) {
       }
       b.x += b.vx * dtf; b.y += b.vy * dtf; b.life -= dtf;
       if (b.life <= 0) { bullets.splice(i, 1); continue; }
+      // Crazy rocket: explode on first enemy touch with splash damage
+      if (b.crazyRocket) {
+        let rktHit = false;
+        for (let j = 0; j < enemies.length; j++) {
+          const e = enemies[j];
+          const dx = b.x - e.x, dy = b.y - e.y;
+          if (dx * dx + dy * dy < (b.r + e.r) ** 2) { rktHit = true; break; }
+        }
+        if (rktHit) {
+          const fc = ['#ff2200', '#ff5500', '#ff8800', '#ffbb00', '#ffee44', '#ffffff'];
+          for (let pi = 0; pi < 70; pi++) {
+            const a = Math.random() * Math.PI * 2, spd2 = 2 + Math.random() * 9;
+            particles.push({ x: b.x, y: b.y, vx: Math.cos(a) * spd2, vy: Math.sin(a) * spd2, r: 2 + Math.random() * 6, life: 45 + Math.random() * 50, col: fc[Math.floor(Math.random() * fc.length)] });
+          }
+          for (let pi = 0; pi < 24; pi++) {
+            const a = (pi / 24) * Math.PI * 2, spd2 = 3 + Math.random() * 2;
+            particles.push({ x: b.x + Math.cos(a) * CRAZY_ROCKET_SPLASH * 0.7, y: b.y + Math.sin(a) * CRAZY_ROCKET_SPLASH * 0.7, vx: Math.cos(a) * spd2, vy: Math.sin(a) * spd2, r: 3 + Math.random() * 4, life: 35 + Math.random() * 30, col: fc[Math.floor(Math.random() * 3)] });
+          }
+          shockwaves.push({ x: b.x, y: b.y, r: 0, maxR: CRAZY_ROCKET_SPLASH, life: 1.0 });
+          let killed = 0;
+          for (let j = enemies.length - 1; j >= 0; j--) {
+            const e = enemies[j];
+            const dx = e.x - b.x, dy = e.y - b.y;
+            if (dx * dx + dy * dy < CRAZY_ROCKET_SPLASH * CRAZY_ROCKET_SPLASH) {
+              explode(e.x, e.y, e.color, 25);
+              const bonus = 100 * getWave(); score += bonus; totalPoints += bonus;
+              if (e.elite || e.darkElite || e.matron || e.lethargion) dropElitePickup(e.x, e.y);
+              enemies.splice(j, 1); killed++;
+            }
+          }
+          spawnFloat(b.x, b.y, 'BOOM! x' + killed, '#ff4400');
+          bullets.splice(i, 1);
+        }
+        continue;
+      }
       let hit = false;
       for (let j = enemies.length - 1; j >= 0; j--) {
         const e = enemies[j];
@@ -1830,6 +1837,15 @@ function loop(now) {
         homingParadiseActive = false; homingParadiseTimer = 0;
         spawnFloat(cam.x, cam.y, 'HOMING OVER', '#cc44ff');
         feed('HOMING PARADISE ENDED');
+      }
+    }
+    // Crazy Rocket: timer
+    if (crazyRocketActive) {
+      crazyRocketTimer -= dtf;
+      if (crazyRocketTimer <= 0) {
+        crazyRocketActive = false; crazyRocketTimer = 0;
+        spawnFloat(cam.x, cam.y, 'ROCKETS OVER', '#ff4400');
+        feed('CRAZY ROCKET MODE ENDED');
       }
     }
 
@@ -2024,11 +2040,15 @@ function loop(now) {
               feed('FEVER DASH — extended!');
             }
           } else if (spiceProductType === 'e') {
-            const tx = (mouseX - W / 2) / zoom + cam.x;
-            const ty = (mouseY - H / 2) / zoom + cam.y;
-            dropStrikes.push({ x: tx, y: ty, progress: 0 });
-            spawnFloat(tx, ty, 'INCOMING!', '#ff4400');
-            feed('DROP STRIKE [A] — BRACE FOR IMPACT! Next cost: ' + nextCost);
+            if (!crazyRocketActive) {
+              crazyRocketActive = true; crazyRocketTimer = CRAZY_ROCKET_DURATION;
+              spawnFloat(cam.x, cam.y, 'CRAZY ROCKET!', '#ff4400');
+              feed('CRAZY ROCKET [A] — ALL BULLETS -> ROCKETS! 10s!');
+            } else {
+              crazyRocketTimer += CRAZY_ROCKET_DURATION;
+              spawnFloat(cam.x, cam.y, 'ROCKET +10s!', '#ff4400');
+              feed('CRAZY ROCKET — extended!');
+            }
           } else if (spiceProductType === 'f') {
             if (!homingParadiseActive) {
               homingParadiseActive = true; homingParadiseTimer = HOMING_PARADISE_DURATION;
@@ -2080,57 +2100,6 @@ function loop(now) {
           EXTRA_LETTERS.forEach(l => extraCollected[l] = false);
           updateExtraBoard();
         }
-      }
-    }
-
-    // Drop Strike — fuse countdown & impact
-    for (let di = dropStrikes.length - 1; di >= 0; di--) {
-      const d = dropStrikes[di];
-      d.progress += dtf;
-      if (d.progress >= DROP_STRIKE_FUSE) {
-        // Impact — fire particles in all directions
-        const fireColors = ['#ff2200', '#ff5500', '#ff8800', '#ffbb00', '#ffee44', '#ffffff'];
-        for (let i = 0; i < 100; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const speed = 2 + Math.random() * 9;
-          particles.push({
-            x: d.x, y: d.y,
-            vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-            r: 2 + Math.random() * 6,
-            life: 45 + Math.random() * 50,
-            col: fireColors[Math.floor(Math.random() * fireColors.length)]
-          });
-        }
-        // Ring of fire particles at blast edge
-        for (let i = 0; i < 32; i++) {
-          const a = (i / 32) * Math.PI * 2;
-          const speed = 3.5 + Math.random() * 2;
-          particles.push({
-            x: d.x + Math.cos(a) * DROP_STRIKE_R * 0.7,
-            y: d.y + Math.sin(a) * DROP_STRIKE_R * 0.7,
-            vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-            r: 3 + Math.random() * 4,
-            life: 35 + Math.random() * 30,
-            col: fireColors[Math.floor(Math.random() * 3)]
-          });
-        }
-        shockwaves.push({ x: d.x, y: d.y, r: 0, maxR: DROP_STRIKE_R, life: 1.0 });
-        // Kill enemies in radius
-        let killed = 0;
-        for (let ei = enemies.length - 1; ei >= 0; ei--) {
-          const e = enemies[ei];
-          const dx = e.x - d.x, dy = e.y - d.y;
-          if (dx * dx + dy * dy < DROP_STRIKE_R * DROP_STRIKE_R) {
-            explode(e.x, e.y, e.color, 25);
-            const bonus = 100 * getWave(); score += bonus; totalPoints += bonus;
-            if (e.elite || e.darkElite || e.matron || e.lethargion) dropElitePickup(e.x, e.y);
-            enemies.splice(ei, 1);
-            killed++;
-          }
-        }
-        spawnFloat(d.x, d.y, 'IMPACT! ×' + killed, '#ff4400');
-        feed('DROP STRIKE IMPACT! ' + killed + ' ENEMIES ELIMINATED');
-        dropStrikes.splice(di, 1);
       }
     }
 
@@ -2346,7 +2315,6 @@ function loop(now) {
   spices.forEach(s => drawSpice(s));
   mines.forEach(m => drawMine(m));
   iceTurrets.forEach(t => drawIceTurret(t));
-  dropStrikes.forEach(d => drawDropStrike(d));
   sprouts.forEach(s => drawSprout(s));
 
   // Slow muds
@@ -2386,8 +2354,9 @@ function loop(now) {
   bullets.forEach(b => {
     const { sx, sy } = wToS(b.x, b.y);
     ctx.save();
-    ctx.globalAlpha = (b.pierce || b.arrow || b.homingParadise) ? 1 : Math.min(1, b.life / 20);
-    if (b.homingParadise) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r, '#ee88ff', '#6600cc');
+    ctx.globalAlpha = (b.pierce || b.arrow || b.homingParadise || b.crazyRocket) ? 1 : Math.min(1, b.life / 20);
+    if (b.crazyRocket) drawCrazyRocket(sx, sy, Math.atan2(b.vy, b.vx), b.r);
+    else if (b.homingParadise) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r, '#ee88ff', '#6600cc');
     else if (b.pierce) drawBullet(sx, sy, b.r, '#ffffff', '#111111');
     else if (b.arrow) drawArrowBullet(sx, sy, Math.atan2(b.vy, b.vx), b.r);
     else if (b.ice) drawBullet(sx, sy, b.r, '#cccccc', '#666666');

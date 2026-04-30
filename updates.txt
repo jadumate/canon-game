@@ -1,3 +1,13 @@
+## [2026-04-30] Crazy Rocket Mode (build 141)
+
+### Spice Product [A] — Drop Strike -> Crazy Rocket
+- Removed Drop Strike (meteo fall mechanic) entirely
+- New: Crazy Rocket mode — lasts 10s, all bullets become rockets
+- Rockets travel at 1/2 normal bullet speed
+- Each rocket explodes on first enemy hit with 240-radius splash damage
+- Visual: rocket shape with fire trail, oriented by travel direction
+- Stackable: activating again extends duration by 10s
+
 ## [2026-04-19] Bullet Fix, Homing Cap & Mine Tuning (build 139)
 
 ### Bullet Rendering — Always Gradient
