@@ -123,7 +123,7 @@ const EXTRA_LETTERS = ['e', 'x', 't', 'r', 'a'];
 const EXTRA_COLORS  = { e: '#ff3333', x: '#ff8800', t: '#ffee00', r: '#33cc55', a: '#aa44ff' };
 const extraCollected = { e: false, x: false, t: false, r: false, a: false };
 let lastBossWave = 0;
-const SPROUT_INTERVAL = 18000; // ms between sprout spawns
+const SPROUT_INTERVAL = 12000; // ms between sprout spawns
 const SPICE_INTERVAL = 10000;  // ms between spice spawns
 const MAX_SPICES = 10;
 const MINE_R = 16;
@@ -143,6 +143,8 @@ const MINIMEE_LIFETIME = 15000; // ms before minimee expires
 const CRAZY_ROCKET_SPLASH    = 240;  // blast radius (world units)
 const CRAZY_ROCKET_DURATION  = 600;  // ~10s at 60fps
 const CRAZY_ROCKET_WARN_AT   = 180;  // last 3s warning
+const CRAZY_ROCKET_MAX       =   5;  // max rockets active at once
+const CRAZY_ROCKET_RATE_MUL  =   3;  // fire interval multiplier (3x slower)
 const MATRON_SPAWN_INTERVAL    = 55;  // frames between swarmling spawns (~0.9s)
 const LETHARGION_MUD_INTERVAL  = 300; // frames between mud volleys (~5s)
 const LETHARGION_MUD_LIFE      = 420; // frames mud lasts (~7s)
@@ -151,9 +153,9 @@ const LETHARGION_MUD_R         = 10;  // mud blob radius
 const LETHARGION_SLOW_DURATION = 300; // frames of slow (~5s)
 const LETHARGION_SLOW_MUL      = 0.8; // ×0.8 per mud blob hit (stacks)
 const LETHARGION_SLOW_MIN      = 0.3; // cap: max ~70% reduction
-const SPROUT_SHIELD_R = 221;   // tree bullet-block radius (world units)
+const SPROUT_SHIELD_R = 265;   // tree bullet-block radius (world units)
 const SPROUT_MAX_LEVEL = 5;    // touches required to grow into a tree
-const MIASMA_R = 192;          // miasma tree damage radius (world units)
+const MIASMA_R = 230;          // miasma tree damage radius (world units)
 const MIASMA_DMG_INTERVAL = 30; // frames between miasma damage ticks
 const MIASMA_LIFE = 14.98 * 60;  // miasma tree lifetime (frames)
 const BARRIER_WALL_LEN = 200;  // full barrier wall length (world units)
@@ -165,6 +167,7 @@ function fireBullet() {
   const a = cannonAngle, s = getBS(), r = getBR();
   const ox = Math.cos(a) * 32, oy = Math.sin(a) * 32;
   if (crazyRocketActive) {
+    if (bullets.filter(b => b.crazyRocket).length >= CRAZY_ROCKET_MAX) return;
     bullets.push({ x: cam.x + ox, y: cam.y + oy, vx: Math.cos(a) * (s / 2), vy: Math.sin(a) * (s / 2), r: r * 1.3, life: 1400, crazyRocket: true });
     return;
   }
@@ -371,7 +374,7 @@ function spawnBoss(wave) {
 }
 
 function spawnSprout() {
-  if (sprouts.length >= 10) return;
+  if (sprouts.length >= 15) return;
   const a = Math.random() * Math.PI * 2;
   const d = 180 + Math.random() * 320;
   let sx = cam.x + Math.cos(a) * d;
@@ -839,6 +842,16 @@ function drawPickup(p) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
   ctx.fillText(p.label, sx, sy);
+  // pre-morph warning flash (last 1s before transform)
+  if (p.morphTimer >= 4000) {
+    const wt = (p.morphTimer - 4000) / 1000;
+    const wp = Math.abs(Math.sin(wt * Math.PI * 6));
+    ctx.globalAlpha = wp * 0.75;
+    ctx.beginPath(); ctx.arc(sx, sy, p.r * 1.85, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffff00'; ctx.lineWidth = 2.5;
+    if (!lowSpec) { ctx.shadowColor = '#ffff00'; ctx.shadowBlur = 8; }
+    ctx.stroke();
+  }
   // morph flash burst
   if (p.flash > 0) {
     ctx.globalAlpha = p.flash * 0.8;
@@ -1430,7 +1443,7 @@ function loop(now) {
 
     // Shooting
     shotTimer += dt;
-    if (shotTimer >= getFI()) { shotTimer = 0; fireBullet(); }
+    if (shotTimer >= getFI() * (crazyRocketActive ? CRAZY_ROCKET_RATE_MUL : 1)) { shotTimer = 0; fireBullet(); }
 
     // Enemy spawning
     enemyTimer += dt;
@@ -2043,7 +2056,7 @@ function loop(now) {
             if (!crazyRocketActive) {
               crazyRocketActive = true; crazyRocketTimer = CRAZY_ROCKET_DURATION;
               spawnFloat(cam.x, cam.y, 'CRAZY ROCKET!', '#ff4400');
-              feed('CRAZY ROCKET [A] — ALL BULLETS -> ROCKETS! 10s!');
+              feed('CRAZY ROCKET [C] — ALL BULLETS -> ROCKETS! 10s!');
             } else {
               crazyRocketTimer += CRAZY_ROCKET_DURATION;
               spawnFloat(cam.x, cam.y, 'ROCKET +10s!', '#ff4400');

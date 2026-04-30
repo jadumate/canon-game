@@ -1,3 +1,21 @@
+## [2026-04-30] Crazy Rocket, Tree Buffs & Pickup Warning (build 144)
+
+### Spice Product [C] — Crazy Rocket (replaces Drop Strike / meteo)
+- Timed mode (10s): all player bullets become rockets at 1/2 bullet speed
+- Rockets explode on first enemy contact — 240-radius splash, shockwave, particles
+- Stackable: re-activating extends duration by 10s
+- Balanced: max 5 rockets on screen at once, fire rate 3x slower while active
+- UI button label changed from A to C
+
+### Pickup — Pre-Morph Warning Flash
+- Yellow pulsing ring appears 1 second before a pickup transforms to another type
+
+### Trees (Aegis & Miasma) — Range +20%
+- Aegis bullet-shield radius: 221 -> 265
+- Miasma damage radius: 192 -> 230
+- Max trees on field: 10 -> 15
+- Spawn interval: 18s -> 12s (more frequent)
+
 ## [2026-04-30] Crazy Rocket Mode (build 141)
 
 ### Spice Product [A] — Drop Strike -> Crazy Rocket
